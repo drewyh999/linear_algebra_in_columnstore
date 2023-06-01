@@ -1043,6 +1043,11 @@ table_ref(sql_query *query, sql_rel *rel, symbol *tableref, int lateral, list *r
 				return sql_error(sql, 02, SQLSTATE(42000) "SELECT: relation name \"%s\" specified more than once", tname);
 			list_append(refs, tname);
 		}
+
+//        if(res -> l) {
+//            if (strcmp(((sql_table *) res->l)->base.name, "people") == 0)
+//                printf("At table_ref, the exp length is %d\n", list_length(rel->exps));
+//        }
 		return res;
 	} else if (tableref->token == SQL_VALUES) {
 		return rel_values(query, tableref, refs);
@@ -5691,6 +5696,7 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 
 	inner = rel;
 	pexps = sa_list(sql->sa);
+    // Where we decide the selection is valid or not
 	for (dnode *n = sn->selection->h; n; n = n->next) {
 		/* Here we could get real column expressions
 		 * (including single atoms) but also table results.
@@ -5798,6 +5804,15 @@ rel_query(sql_query *query, sql_rel *rel, symbol *sq, int toplevel, exp_kind ek)
 
 			/* just used current expression */
 			fnd = table_ref(query, NULL, n->data.sym, lateral, refs);
+
+//            if(fnd){
+//                if((sql_table*)fnd->l){
+//                    if(strcmp(((sql_table*)fnd->l)->base.name,"people") == 0){
+//                        printf("table_ref found, now the rel exp length is %d\n", list_length(fnd->exps));
+//                    }
+//                }
+//            }
+
 			if (!fnd && res && lateral && sql->session->status != -ERR_AMBIGUOUS) {
 				/* reset error */
 				sql->session->status = 0;
@@ -5827,6 +5842,13 @@ rel_query(sql_query *query, sql_rel *rel, symbol *sq, int toplevel, exp_kind ek)
 
 	if (res)
 		rel = rel_select_exp(query, res, sn, ek);
+    if(res){
+        if((sql_table*)res->l){
+            if(strcmp(((sql_table*)res->l)->base.name,"people") == 0){
+                printf("after rel_select_exp, now the rel exp length is %d\n", list_length(res->exps));
+            }
+        }
+    }
 	if (!rel && res)
 		rel_destroy(res);
 	return rel;
@@ -6156,6 +6178,15 @@ rel_selects(sql_query *query, symbol *s)
 			ret = rel_select_with_into(query, s);
 		} else {
 			ret = rel_subquery(query, NULL, s, ek);
+//            if(ret && sn -> from){
+//                if((sql_table*)ret->l){
+//            if(strcmp(((sql_table*)rel->l)->base.name,"people") == 0){
+//                printf("after rel_query, now the rel exp length is %d\n", list_length(rel->exps));
+//            }
+//                    printf("table name is %s ", ((sql_table*)ret->l) -> base.name);
+//                    printf("exp length is %d\n", list_length(ret->l));
+//                }
+//            }
 			sql->type = Q_TABLE;
 		}
 	}	break;

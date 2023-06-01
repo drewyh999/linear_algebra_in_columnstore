@@ -3073,7 +3073,7 @@ add_typeswitchloop(const void *lft, int tp1, bool incr1,
 	tp1 = ATOMbasetype(tp1);
 	tp2 = ATOMbasetype(tp2);
 	tp = ATOMbasetype(tp);
-	switch (tp1) {
+	switch (tp1) {// TYPE_* is the data type of the column
 	case TYPE_bte:
 		switch (tp2) {
 		case TYPE_bte:
@@ -4372,8 +4372,8 @@ BATcalcadd(BAT *b1, BAT *b2, BAT *s1, BAT *s2, int tp, bool abort_on_error)
 {
 	lng t0 = 0;
 	BAT *bn;
-	BUN nils;
-	BUN ncand;
+	BUN nils;// bat contains null value or not
+	BUN ncand;//number of candidates
 	struct canditer ci1, ci2;
 
 	TRC_DEBUG_IF(ALGO) t0 = GDKusec();
@@ -4401,6 +4401,7 @@ BATcalcadd(BAT *b1, BAT *b2, BAT *s1, BAT *s2, int tp, bool abort_on_error)
 	if (b1->ttype == TYPE_str && b2->ttype == TYPE_str && tp == TYPE_str) {
 		nils = addstr_loop(b1, NULL, b2, NULL, bn, b1i, b2i, &ci1, &ci2);
 	} else {
+        // Doing the actual operation on BATs
 		nils = add_typeswitchloop(b1i.base, b1->ttype, true,
 					  b2i.base, b2->ttype, true,
 					  Tloc(bn, 0), tp,

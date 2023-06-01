@@ -1104,6 +1104,7 @@ exp2bin_coalesce(backend *be, sql_exp *fe, stmt *left, stmt *right, stmt *isel, 
 	return res;
 }
 
+// Convert expression to MAL stmts
 stmt *
 exp_bin(backend *be, sql_exp *e, stmt *left, stmt *right, stmt *grp, stmt *ext, stmt *cnt, stmt *sel, int depth, int reduce, int push)
 {
@@ -1367,6 +1368,7 @@ exp_bin(backend *be, sql_exp *e, stmt *left, stmt *right, stmt *grp, stmt *ext, 
 			s->flag |= OUTER_ZERO;
 	} 	break;
 	case e_column: {
+        // Fetch out the stmt containing the column instrptr from the stmt left or right
 		if (right) /* check relation names */
 			s = bin_find_column(be, right, e->l, e->r);
 		if (!s && left)
@@ -1793,11 +1795,28 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 	stmt *dels = stmt_tid(be, t, rel->flag == REL_PARTITION), *col = NULL;
 	node *en;
 
+    if(rel->l){
+        if(strcmp(((sql_table*) rel->l)->base.name,"people") == 0){
+
+                fprintf(stderr, "sql_rel's exp length is %d\n", list_length(rel->exps));
+
+        }
+    }
+
 	/* add aliases */
 	assert(rel->exps);
 	for( en = rel->exps->h; en && !col; en = en->next ) {
 		sql_exp *exp = en->data;
 		const char *oname = exp->r;
+
+//        if(rel->l){
+//            if(strcmp(((sql_table*) rel->l)->base.name,"people") == 0){
+//
+//                fprintf(stderr, " exp name is %s\n", oname);
+//
+//            }
+//        }
+//        fprintf(stderr, " exp name is %s\n", oname);
 
 		if (is_func(exp->type) || (oname[0] == '%' && strcmp(oname, TID) == 0))
 			continue;
@@ -1821,6 +1840,14 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 		const char *rname = exp_relname(exp)?exp_relname(exp):exp->l;
 		const char *oname = exp->r;
 		stmt *s = NULL;
+//        if(rel->l){
+//            if(strcmp(((sql_table*) rel->l)->base.name,"people") == 0){
+//
+//                printf(" exp name is %s\n", oname);
+//                printf(" exp type is %d \n", exp -> type);
+//            }
+//        }
+//        fprintf(stderr, " exp name is %s\n", oname);
 
 		assert(!is_func(exp->type));
 		if (oname[0] == '%' && strcmp(oname, TID) == 0) {
@@ -1842,15 +1869,20 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 				continue;
 			s = (i == fi) ? col : stmt_idx(be, i, NULL/*dels*/, dels->partition);
 		} else {
+            // find the column in the table t
 			sql_column *c = find_sql_column(t, oname);
 
 			s = (c == fcol) ? col : stmt_col(be, c, NULL/*dels*/, dels->partition);
+            if(strcmp(s->tname, "people") == 0){
+                printf("column name of stmt_col result is %s\n", s->cname);
+            }
 		}
 		s->tname = rname;
 		s->cname = exp_name(exp);
 		list_append(l, s);
 	}
 	stmt *res = stmt_list(be, l);
+
 	if (res && dels)
 		res->cand = dels;
 	return res;
@@ -3439,6 +3471,7 @@ rel2bin_project(backend *be, sql_rel *rel, list *refs, sql_rel *topn)
 		}
 	}
 
+
 	if (!rel->exps)
 		return stmt_none(be);
 
@@ -3451,7 +3484,22 @@ rel2bin_project(backend *be, sql_rel *rel, list *refs, sql_rel *topn)
 				sub = rel2bin_sql_table(be, t, rel->exps);
 		} else {
 			sub = subrel_bin(be, rel->l, refs);
+
 		}
+        // TODO So does the sub op4 has exp or not? yes
+        if(sub->cand){
+            if(sub->cand->op4.tval){
+                if(strcmp(sub->cand->op4.tval->base.name, "people") == 0){
+                    for(node* opn = sub -> op4.lval -> h; opn; opn = opn -> next){
+                        printf("exp name in rel's op4 is %d \n", (((sql_exp*)(opn -> data)) -> type));
+
+                    }
+                }
+            }
+        }
+
+
+
 		sub = subrel_project(be, sub, refs, rel->l);
 		if (!sub)
 			return NULL;
@@ -3465,7 +3513,7 @@ rel2bin_project(backend *be, sql_rel *rel, list *refs, sql_rel *topn)
 		sql_exp *exp = en->data;
 		int oldvtop = be->mb->vtop, oldstop = be->mb->stop, oldvid = be->mb->vid;
 		stmt *s = exp_bin(be, exp, sub, NULL /*psub*/, NULL, NULL, NULL, NULL, 0, 0, 0);
-
+        // s is the stmt struct
 		if (!s) { /* try with own projection as well, but first clean leftover statements */
 			clean_mal_statements(be, oldstop, oldvtop, oldvid);
 			s = exp_bin(be, exp, sub, psub, NULL, NULL, NULL, NULL, 0, 0, 0);
@@ -6424,6 +6472,11 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 
 	s = subrel_bin(be, rel, refs);
 	s = subrel_project(be, s, refs, rel);
+    if(rel -> l){
+        if(((sql_rel*)rel -> l) -> op == op_basetable){
+            printf("here");
+        }
+    }
 	if (!s)
 		return NULL;
 	if (sqltype == Q_SCHEMA)

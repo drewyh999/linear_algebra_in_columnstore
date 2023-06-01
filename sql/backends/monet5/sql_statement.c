@@ -2736,6 +2736,7 @@ stmt_set_nrcols(stmt *s)
 
 		if (!f)
 			continue;
+        //Get the largest nrcols among all stmtdata to be the nrcols of the current stmt
 		if (f->nrcols > nrcols)
 			nrcols = f->nrcols;
 		key &= f->key;
@@ -2770,11 +2771,23 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 
 	args = list_length(l) + 1;
 
+
+    // Initialize a new MAL instruction with arg + 5 arguments and call sql.resultSet
 	list = newInstructionArgs(mb,sqlRef, resultSetRef, args + 5);
 	if(!list) {
 		return NULL;
 	}
 	getArg(list,0) = newTmpVariable(mb,TYPE_int);
+    /*
+    #define meta(P, Id, Tpe, Args)						\
+	do {											\
+		P = newStmtArgs(mb, batRef, packRef, Args);	\
+		Id = getArg(P,0);							\
+		setVarType(mb, Id, newBatType(Tpe));		\
+		setVarFixed(mb, Id);						\
+		list = pushArgument(mb, list, Id);			\
+	} while (0)
+     */
 	meta(tblPtr, tblId, TYPE_str, args);
 	meta(nmePtr, nmeId, TYPE_str, args);
 	meta(tpePtr, tpeId, TYPE_str, args);
@@ -2792,15 +2805,15 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 		const char *tn = (tname) ? tname : _empty;
 		const char *sn = (sname) ? sname : _empty;
 		const char *cn = column_name(sql->sa, c);
-		const char *ntn = sql_escape_ident(sql->ta, tn);
-		const char *nsn = sql_escape_ident(sql->ta, sn);
+		const char *neat_table_name = sql_escape_ident(sql->ta, tn);
+		const char *neat_schema_name = sql_escape_ident(sql->ta, sn);
 		size_t fqtnl;
 		char *fqtn = NULL;
 
-		if (ntn && nsn && (fqtnl = strlen(ntn) + 1 + strlen(nsn) + 1) ){
+		if (neat_table_name && neat_schema_name && (fqtnl = strlen(neat_table_name) + 1 + strlen(neat_schema_name) + 1) ){
 			fqtn = SA_NEW_ARRAY(sql->ta, char, fqtnl);
 			if(fqtn) {
-				snprintf(fqtn, fqtnl, "%s.%s", nsn, ntn);
+				snprintf(fqtn, fqtnl, "%s.%s", neat_schema_name, neat_table_name);
 				metaInfo(tblPtr,Str,fqtn);
 				metaInfo(nmePtr,Str,cn);
 				metaInfo(tpePtr,Str,(t->type->localtype == TYPE_void ? "char" : t->type->base.name));
