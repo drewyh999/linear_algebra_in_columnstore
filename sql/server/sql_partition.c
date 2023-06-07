@@ -145,6 +145,7 @@ rel_find_table_columns(mvc* sql, sql_rel* rel, sql_table *t, list *cols)
 		case op_project:
 		case op_select:
 		case op_topn:
+        case op_matrix_transpose:
 		case op_sample:
 			if (rel->l)
 				rel_find_table_columns(sql, rel->l, t, cols);

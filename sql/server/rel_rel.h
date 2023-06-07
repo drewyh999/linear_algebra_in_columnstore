@@ -116,6 +116,9 @@ extern sql_rel *rel_zero_or_one(mvc *sql, sql_rel *rel, exp_kind ek);
 
 extern list *rel_dependencies(mvc *sql, sql_rel *r);
 
+// Matrix operations
+extern sql_rel *rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order_schema_exps, list *application_schema_exps);
+
 typedef struct visitor {
 	int changes;
 	int depth;		/* depth of the current relation */

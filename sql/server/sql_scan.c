@@ -517,6 +517,10 @@ scanner_init_keywords(void)
 	failed += keywords_insert("MULTIPOLYGONZM", GEOMETRYSUBTYPE);
 	failed += keywords_insert("GEOMETRYCOLLECTIONZM", GEOMETRYSUBTYPE);
 
+    // Keywords for matrix operation
+    failed += keywords_insert("TRA", TRANSPOSE);
+    failed += keywords_insert("MATMUL", MATRIX_MULTIPLICATION);
+
 	return failed;
 }
 

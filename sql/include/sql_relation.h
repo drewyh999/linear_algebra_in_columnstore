@@ -166,7 +166,8 @@ typedef enum operator_type {
 	op_update,	/* update(l=table, r update expressions) */
 	op_delete,	/* delete(l=table, r delete expression) */
 	op_truncate, /* truncate(l=table) */
-	op_merge
+	op_merge,
+    op_matrix_transpose
 } operator_type;
 
 #define is_atom(et) 		(et == e_atom)

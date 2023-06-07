@@ -10,6 +10,8 @@
 #include "gdk.h"		/* for GDKmalloc() & GDKfree() */
 #include "sql_list.h"
 
+
+
 static node *
 node_create(sql_allocator *sa, void *data)
 {
@@ -318,6 +320,21 @@ list_prepend(list *l, void *data)
 	}
 	MT_lock_unset(&l->ht_lock);
 	return l;
+}
+
+// for list left and right, return left - right
+// eg, left = [1,2,3] right = [2,3] then the result is [1]
+list *
+list_subtraction(list *left, list *right){
+    if(right == NULL)
+        return left;
+
+    // Remove every element in the right from the left
+    for(node *head_right = right -> h; head_right; head_right = head_right -> next){
+        (void) list_remove_node(left, NULL, head_right);
+    }
+
+    return left;
 }
 
 static void

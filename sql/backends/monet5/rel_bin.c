@@ -2018,6 +2018,7 @@ rel2bin_args(backend *be, sql_rel *rel, list *args)
 		args = rel2bin_args(be, rel->l, args);
 		break;
 	case op_ddl:
+    case op_matrix_transpose:
 		args = rel2bin_args(be, rel->l, args);
 		if (rel->r)
 			args = rel2bin_args(be, rel->r, args);
@@ -5458,6 +5459,8 @@ sql_delete_triggers(backend *be, sql_table *t, stmt *tids, stmt **deleted_cols, 
 
 static stmt * sql_delete(backend *be, sql_table *t, stmt *rows);
 
+static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list *refs);
+
 static stmt *
 sql_delete_cascade_Fkeys(backend *be, sql_key *fk, stmt *ftids)
 {
@@ -6422,6 +6425,10 @@ subrel_bin(backend *be, sql_rel *rel, list *refs)
 		if (sql->type == Q_TABLE)
 			sql->type = Q_UPDATE;
 		break;
+    case op_matrix_transpose:
+        s = rel2bin_matrix_transpose(be, rel, refs);
+        sql->type = Q_TABLE;
+        break;
 	case op_truncate:
 		s = rel2bin_truncate(be, rel);
 		if (sql->type == Q_TABLE)
@@ -6441,6 +6448,11 @@ subrel_bin(backend *be, sql_rel *rel, list *refs)
 		list_append(refs, s);
 	}
 	return s;
+}
+
+static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list *refs) {
+    stmt *s = subrel_bin(be, relation_tree, refs);
+    return s;
 }
 
 stmt *

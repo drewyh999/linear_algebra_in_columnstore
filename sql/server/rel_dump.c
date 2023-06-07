@@ -369,6 +369,8 @@ op2string(operator_type op)
 		return "table";
 	case op_ddl:
 		return "ddl";
+    case op_matrix_transpose:
+        return "matrix transpose";
 	case op_project:
 		return "project";
 	case op_select:
@@ -696,6 +698,7 @@ rel_print_refs(mvc *sql, stream* fout, sql_rel *rel, int depth, list *refs, int 
 	case op_project:
 	case op_select:
 	case op_groupby:
+    case op_matrix_transpose:
 	case op_topn:
 	case op_sample:
 		if (rel->l)

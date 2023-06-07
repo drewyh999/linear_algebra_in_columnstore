@@ -16,6 +16,22 @@
 #include "sql_mvc.h"
 #include "rel_rewriter.h"
 
+sql_rel *
+rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order_schema_exps, list *application_schema_exps)
+{
+    sql_rel *rel = rel_create(sa);
+    if(!rel)
+        return NULL;
+
+    rel->l = table_ref_relation;
+    rel->r = order_schema_exps;
+    rel->op = op_matrix_transpose;
+    rel->exps = application_schema_exps;
+    rel->card = CARD_MULTI;
+    rel->nrcols = table_ref_relation -> nrcols;
+    return rel;
+}
+
 void
 rel_set_exps(sql_rel *rel, list *exps)
 {
@@ -117,6 +133,7 @@ rel_destroy_(sql_rel *rel)
 	case op_project:
 	case op_groupby:
 	case op_select:
+    case op_matrix_transpose:
 	case op_topn:
 	case op_sample:
 	case op_truncate:
@@ -185,6 +202,7 @@ rel_copy(mvc *sql, sql_rel *i, int deep)
 		break;
 	case op_project:
 	case op_groupby:
+    case op_matrix_transpose:
 		if (i->l)
 			rel->l = rel_copy(sql, i->l, deep);
 		if (i->r) {
@@ -1047,6 +1065,7 @@ _rel_projections(mvc *sql, sql_rel *rel, const char *tname, int settname, int in
 	case op_select:
 	case op_topn:
 	case op_sample:
+    case op_matrix_transpose:
 		return _rel_projections(sql, rel->l, tname, settname, intern, basecol);
 	default:
 		return NULL;
@@ -1087,6 +1106,7 @@ rel_bind_path_(mvc *sql, sql_rel *rel, sql_exp *e, list *path )
 	case op_semi:
 	case op_anti:
 	case op_select:
+    case op_matrix_transpose:
 	case op_topn:
 	case op_sample:
 		found = rel_bind_path_(sql, rel->l, e, path);
@@ -1810,6 +1830,7 @@ rel_deps(mvc *sql, sql_rel *r, list *refs, list *l)
 		break;
 	case op_project:
 	case op_select:
+    case op_matrix_transpose:
 	case op_groupby:
 	case op_topn:
 	case op_sample:
@@ -2033,6 +2054,7 @@ rel_exp_visitor(visitor *v, sql_rel *rel, exp_rewrite_fptr exp_rewriter, bool to
 		break;
 	case op_select:
 	case op_topn:
+    case op_matrix_transpose:
 	case op_sample:
 	case op_project:
 	case op_groupby:
@@ -2235,6 +2257,7 @@ rel_visitor(visitor *v, sql_rel *rel, rel_rewrite_fptr rel_rewriter, bool topdow
 	case op_select:
 	case op_topn:
 	case op_sample:
+    case op_matrix_transpose:
 	case op_project:
 	case op_groupby:
 	case op_truncate:

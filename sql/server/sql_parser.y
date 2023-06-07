@@ -249,6 +249,7 @@ int yydebug=1;
 	like_predicate
 	like_table
 	literal
+	matrix_operation
 	merge_insert
 	merge_match_clause
 	merge_stmt
@@ -706,6 +707,9 @@ SQLCODE SQLERROR UNDER WHENEVER
 %token ATOMIC BEGIN END
 %token COPY RECORDS DELIMITERS STDIN STDOUT FWF CLIENT SERVER
 %token INDEX REPLACE
+
+// Tokens for matrix operation
+%token TRANSPOSE MATRIX_MULTIPLICATION
 
 %token AS TRIGGER OF BEFORE AFTER ROW STATEMENT sqlNEW OLD EACH REFERENCING
 %token OVER PARTITION CURRENT EXCLUDE FOLLOWING PRECEDING OTHERS TIES RANGE UNBOUNDED GROUPS WINDOW
@@ -3392,6 +3396,17 @@ table_ref:
 				}
  |  joined_table 		{ $$ = $1;
 				  append_symbol($1->data.lval, NULL); }
+ |  matrix_operation		{ $$ = $1;}
+ ;
+
+matrix_operation:
+    TRANSPOSE '(' table_ref BY sort_specification_list ')'
+    				{
+				  dlist *l = L();
+				  append_symbol(l, $3);
+				  append_list(l, $5);
+				  $$ = _symbol_create_list(SQL_TRANSPOSE, l);
+    				}
  ;
 
 table_name:
@@ -6365,6 +6380,8 @@ char *token2string(tokens token)
 	SQL(XMLPARSE);
 	SQL(XMLPI);
 	SQL(XMLTEXT);
+	SQL(TRANSPOSE);
+	SQL(MATRIX_MULTIPLICATION);
 #define TR(TYPE) case TR_##TYPE : return #TYPE
 	TR(COMMIT);
 	TR(MODE);
