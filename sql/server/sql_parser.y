@@ -3400,7 +3400,7 @@ table_ref:
  ;
 
 matrix_operation:
-    TRANSPOSE '(' table_ref BY sort_specification_list ')'
+    TRANSPOSE '(' table_ref BY column_ref_commalist ')'
     				{
 				  dlist *l = L();
 				  append_symbol(l, $3);

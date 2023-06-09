@@ -163,7 +163,7 @@ rel_partition(mvc *sql, sql_rel *rel)
 
 	if (is_basetable(rel->op)) {
 		rel->flag = REL_PARTITION;
-	} else if (is_simple_project(rel->op) || is_select(rel->op) || is_groupby(rel->op) || is_topn(rel->op) || is_sample(rel->op)) {
+	} else if (is_simple_project(rel->op) || is_select(rel->op) || is_groupby(rel->op) || is_topn(rel->op) || is_sample(rel->op) || is_matrix_transpose(rel->op)) {
 		if (rel->l)
 			rel_partition(sql, rel->l);
 	} else if (is_semi(rel->op) || is_set(rel->op) || is_merge(rel->op)) {

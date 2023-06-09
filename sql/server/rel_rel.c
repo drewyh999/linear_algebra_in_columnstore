@@ -1079,6 +1079,11 @@ rel_projections(mvc *sql, sql_rel *rel, const char *tname, int settname, int int
 	return _rel_projections(sql, rel, tname, settname, intern, 0);
 }
 
+bool rel_has_transpose(mvc *sql, sql_rel *relation_tree){
+    // TODO implementation
+    return false;
+}
+
 /* find the path to the relation containing the base of the expression
 	(e_column), in most cases this means go down the join tree and
 	find the base column.

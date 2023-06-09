@@ -27,6 +27,12 @@
 #define SQL_REL_DEBUG
 #define VALUE_FUNC(f) (f->func->type == F_FUNC || f->func->type == F_FILT)
 #define check_card(card,f) ((card == card_none && !f->res) || (CARD_VALUE(card) && f->res && VALUE_FUNC(f)) || card == card_loader || (card == card_relation && f->func->type == F_UNION))
+static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
+
+static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
+
+static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
+
 
 static symbdata get_element_by_index(dlist *list_in, int index){
     dnode *res = list_in -> h;
@@ -313,72 +319,6 @@ rel_with_query(sql_query *query, symbol *q )
 	rel = rel_semantic(query, next);
 	stack_pop_frame(sql);
 	return rel;
-}
-
-static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
-
-static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
-
-static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
-
-static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps) {
-    if(query == NULL || relation_tree == NULL || ordering_exps == NULL){
-        return NULL;
-    }
-    mvc *sql = query -> sql;
-
-    // Get all column exps in the subtree
-    list *all_column_exps = _rel_projections(sql, relation_tree, NULL, 0, 0, 0);
-
-    return list_subtraction(all_column_exps, ordering_exps);
-}
-
-static list *
-rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list)
-{
-    // Have no idea why tf we need these guys
-    mvc *sql = query -> sql;
-    sql_allocator *sa = query -> sql -> sa;
-    //
-
-    list *result = new_exp_list(sa);
-    for(dnode *list_node = column_symbol_list -> h; list_node != NULL; list_node = list_node -> next)
-    {
-        symbol *column_symbol = list_node -> data.sym;
-        if(column_symbol -> token != SQL_COLUMN)
-        {
-            return sql_error(sql, 02, SQLSTATE(42000) "Order schema part should only be column references\n");
-        }
-        list_append(result, rel_column_exp(query, relation_tree, column_symbol, 0));
-    }
-    return result;
-}
-
-static sql_rel *
-rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol){
-    sql_allocator *sa = query -> sql ->sa;
-
-    // Fetch symbol tree information
-    dlist *data_list = transpose_symbol -> data.lval;
-    symbol *table_ref_symbol = get_element_by_index(data_list, 0).sym;
-    dlist *ordering_schema_symbols = get_element_by_index(data_list, 1).lval;
-    if(!table_ref_symbol || !ordering_schema_symbols)
-        return NULL;
-
-    // Resolve possible sub queries in table_ref, if it is simply a table reference, it will also be processed here
-    sql_rel *sub_rel = table_ref(query, relation_tree, table_ref_symbol, 0, NULL);
-
-    // Get list of expression (in the simplest occasion, the column references) of ordering schema
-    list *ordering_exps = rel_ordering_schema_exps(query, &relation_tree, ordering_schema_symbols);
-
-    // Get list of expression (in the simplest occasion, the column references) of application schema
-    list *application_exps = rel_application_schema_exps(query, relation_tree, ordering_exps);
-
-    // Construct the matrix transpose node in sql_rel tree, l points to the subtree to table references,
-    // r points to the ordering schema expressions, exps contains application schema expressions
-    relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps);
-
-    return relation_tree;
 }
 
 static sql_rel *
@@ -1226,6 +1166,10 @@ rel_column_ref(sql_query *query, sql_rel **rel, symbol *column_r, int f)
 
 	assert((column_r->token == SQL_COLUMN || column_r->token == SQL_IDENT) && column_r->type == type_list);
 	l = column_r->data.lval;
+
+    if(column_r -> token == SQL_NAME && strcmp(column_r -> data.lval -> h -> data.sval, "people") == 0){
+        printf("hi");
+    }
 
 	if (dlist_length(l) == 1) {
 		const char *name = l->h->data.sval;
@@ -5785,6 +5729,9 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 		 * and rel_table_exp.
 		 */
 		list *te = NULL;
+        if(n -> data.sym -> type == SQL_TABLE && n -> data.sym -> data.lval -> h -> data.sval == NULL){
+            printf("Here");
+        }
 		sql_exp *ce = rel_column_exp(query, &inner, n->data.sym, sql_sel | group_totals);
 
 		if (ce) {
@@ -6386,4 +6333,72 @@ rel_loader_function(sql_query *query, symbol* fcall, list *fexps, sql_subfunc **
 		*loader_function = sf;
 
 	return rel_table_func(sql->sa, sq, e, fexps, (sq)?TABLE_FROM_RELATION:TABLE_PROD_FUNC);
+}
+
+static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
+
+static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
+
+static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
+
+static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps) {
+    if(query == NULL || relation_tree == NULL || ordering_exps == NULL){
+        return NULL;
+    }
+    mvc *sql = query -> sql;
+
+    // Get all column exps in the subtree
+    list *all_column_exps = _rel_projections(sql, relation_tree, NULL, 0, 0, 0);
+
+    return list_subtraction(all_column_exps, ordering_exps, exp_column_cmp);
+}
+
+static list *
+rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list)
+{
+    // Have no idea why tf we need these guys
+    mvc *sql = query -> sql;
+    sql_allocator *sa = query -> sql -> sa;
+    //
+
+    list *result = new_exp_list(sa);
+    for(dnode *list_node = column_symbol_list -> h; list_node != NULL; list_node = list_node -> next)
+    {
+        symbol *column_symbol = list_node -> data.sym;
+        if(column_symbol -> token != SQL_COLUMN)
+        {
+            return sql_error(sql, 02, SQLSTATE(42000) "Order schema part should only be column references\n");
+        }
+        result = list_append(result, rel_column_ref(query, relation_tree, column_symbol, 0));
+    }
+    return result;
+}
+
+
+// TODO Write a function that detects transpose node in a sql_rel tree
+static sql_rel *
+rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol){
+    sql_allocator *sa = query -> sql ->sa;
+
+    // Fetch symbol tree information
+    dlist *data_list = transpose_symbol -> data.lval;
+    symbol *table_ref_symbol = get_element_by_index(data_list, 0).sym;
+    dlist *ordering_schema_symbols = get_element_by_index(data_list, 1).lval;
+    if(!table_ref_symbol || !ordering_schema_symbols)
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "No ordering schema specified\n");
+
+    // Resolve possible sub queries in table_ref, if it is simply a table reference, it will also be processed here
+    sql_rel *sub_rel = table_ref(query, relation_tree, table_ref_symbol, 0, NULL);
+
+    // Get list of expression (in the simplest occasion, the column references) of ordering schema
+    list *ordering_exps = rel_ordering_schema_exps(query, &sub_rel, ordering_schema_symbols);
+
+    // Get list of expression (in the simplest occasion, the column references) of application schema
+    list *application_exps = rel_application_schema_exps(query, sub_rel, ordering_exps);
+
+    // Construct the matrix transpose node in sql_rel tree, l points to the subtree to table references,
+    // r points to the ordering schema expressions, exps contains application schema expressions
+    relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps);
+
+    return relation_tree;
 }

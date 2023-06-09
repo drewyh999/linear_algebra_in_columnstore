@@ -13,6 +13,22 @@
 #include "rel_rel.h"
 #include "rel_basetable.h"
 #include "rel_prop.h"
+#include "string.h"
+
+int exp_column_cmp(void *left, void *right)
+{
+    sql_exp *left_column_expression = (sql_exp *)left;
+    sql_exp *right_column_expression = (sql_exp *)right;
+    assert(left_column_expression -> type == e_column && left_column_expression -> type == e_column);
+
+    // If a sql_exp is a column reference it's l pointer points to the table name it belongs to
+    // and r pointer points to the column name
+    if(strcmp((char *)left_column_expression -> l,(char *) right_column_expression -> l) == 0
+            && strcmp((char *)left_column_expression -> r, (char *)right_column_expression -> r) == 0){
+        return 1;
+    }
+    return 0;
+}
 
 comp_type
 compare_str2type(const char *compare_op)

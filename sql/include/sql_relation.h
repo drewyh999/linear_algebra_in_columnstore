@@ -210,6 +210,7 @@ typedef enum operator_type {
 #define is_delete(op) 		(op == op_delete)
 #define is_truncate(op) 	(op == op_truncate)
 #define is_merge(op) 		(op == op_merge)
+#define is_matrix_transpose(op) (op == op_matrix_transpose)
 
 /* ZERO on empty sets, needed for sum (of counts)). */
 #define zero_if_empty(e) 	((e)->zero_if_empty)

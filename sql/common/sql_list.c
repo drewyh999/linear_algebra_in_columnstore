@@ -323,15 +323,25 @@ list_prepend(list *l, void *data)
 }
 
 // for list left and right, return left - right
-// eg, left = [1,2,3] right = [2,3] then the result is [1]
+// eg, left = [1,2,3] right = [2,3] then the result should be [1]
+// TODO Write a function that compares two sql_exp struct
 list *
-list_subtraction(list *left, list *right){
+list_subtraction(list *left, list *right, fcmp compare_function){
     if(right == NULL)
         return left;
 
+    node *left_node;
+
     // Remove every element in the right from the left
-    for(node *head_right = right -> h; head_right; head_right = head_right -> next){
-        (void) list_remove_node(left, NULL, head_right);
+    for(node *right_node = right -> h; right_node; right_node = right_node -> next)
+    {
+        // Find the node in the left list that has the same value as the right_node
+        // If found, delete this node in the left list
+        left_node = list_find(left, right_node -> data, compare_function);
+        if(left_node)
+        {
+            (void) list_remove_node(left, NULL, left_node);
+        }
     }
 
     return left;

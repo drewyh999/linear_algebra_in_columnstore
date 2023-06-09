@@ -6486,7 +6486,7 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 	s = subrel_project(be, s, refs, rel);
     if(rel -> l){
         if(((sql_rel*)rel -> l) -> op == op_basetable){
-            printf("here");
+//            printf("here");
         }
     }
 	if (!s)
