@@ -324,7 +324,6 @@ list_prepend(list *l, void *data)
 
 // for list left and right, return left - right
 // eg, left = [1,2,3] right = [2,3] then the result should be [1]
-// TODO Write a function that compares two sql_exp struct
 list *
 list_subtraction(list *left, list *right, fcmp compare_function){
     if(right == NULL)

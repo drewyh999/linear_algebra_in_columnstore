@@ -28,6 +28,7 @@ rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order
     rel->op = op_matrix_transpose;
     rel->exps = application_schema_exps;
     rel->card = CARD_MULTI;
+    // TODO Use mapi API to decide the number of columns here
     rel->nrcols = table_ref_relation -> nrcols;
     return rel;
 }
@@ -361,7 +362,8 @@ rel_bind_column( mvc *sql, sql_rel *rel, const char *cname, int f, int no_tname)
 	} else if (is_semi(rel->op) ||
 		   is_select(rel->op) ||
 		   is_topn(rel->op) ||
-		   is_sample(rel->op)) {
+		   is_sample(rel->op) ||
+           is_matrix_transpose(rel->op)) {
 		if (rel->l)
 			return rel_bind_column(sql, rel->l, cname, f, no_tname);
 	}
@@ -1065,6 +1067,7 @@ _rel_projections(mvc *sql, sql_rel *rel, const char *tname, int settname, int in
 	case op_select:
 	case op_topn:
 	case op_sample:
+    // TODO Here the matrix transpose should return a list of place holder exps
     case op_matrix_transpose:
 		return _rel_projections(sql, rel->l, tname, settname, intern, basecol);
 	default:
@@ -1079,8 +1082,48 @@ rel_projections(mvc *sql, sql_rel *rel, const char *tname, int settname, int int
 	return _rel_projections(sql, rel, tname, settname, intern, 0);
 }
 
-bool rel_has_transpose(mvc *sql, sql_rel *relation_tree){
-    // TODO implementation
+bool rel_has_transpose(sql_rel *relation_tree)
+{
+    bool left;
+    bool right;
+    if(relation_tree == NULL)
+        return false;
+    switch (relation_tree -> op) {
+        case op_join:
+        case op_left:
+        case op_right:
+        case op_full:
+        case op_semi:
+        case op_anti:
+        case op_select:
+        case op_topn:
+        case op_sample:
+        case op_union:
+        case op_inter:
+        case op_except:
+        case op_groupby:
+        case op_project:
+        case op_table:
+            left = false;
+            right = false;
+            if(relation_tree -> l)
+                left = rel_has_transpose(relation_tree -> l);
+            if(relation_tree -> r)
+                right = rel_has_transpose(relation_tree -> r);
+            return  left || right;
+        case op_insert:
+        case op_update:
+        case op_delete:
+        case op_truncate:
+        case op_merge:
+        case op_ddl:
+        case op_basetable:
+            break;
+        case op_matrix_transpose:
+            return true;
+        default:
+            return false;
+    }
     return false;
 }
 

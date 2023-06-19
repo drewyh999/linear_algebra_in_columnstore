@@ -1167,10 +1167,6 @@ rel_column_ref(sql_query *query, sql_rel **rel, symbol *column_r, int f)
 	assert((column_r->token == SQL_COLUMN || column_r->token == SQL_IDENT) && column_r->type == type_list);
 	l = column_r->data.lval;
 
-    if(column_r -> token == SQL_NAME && strcmp(column_r -> data.lval -> h -> data.sval, "people") == 0){
-        printf("hi");
-    }
-
 	if (dlist_length(l) == 1) {
 		const char *name = l->h->data.sval;
 
@@ -5721,6 +5717,8 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 
 	inner = rel;
 	pexps = sa_list(sql->sa);
+
+    // If there is a transpose in the relation which we try to select, we run mapi API and try to project on placeholders
     // Where we decide the selection is valid or not
 	for (dnode *n = sn->selection->h; n; n = n->next) {
 		/* Here we could get real column expressions
@@ -5833,13 +5831,6 @@ rel_query(sql_query *query, sql_rel *rel, symbol *sq, int toplevel, exp_kind ek)
 			/* just used current expression */
 			fnd = table_ref(query, NULL, n->data.sym, lateral, refs);
 
-//            if(fnd){
-//                if((sql_table*)fnd->l){
-//                    if(strcmp(((sql_table*)fnd->l)->base.name,"people") == 0){
-//                        printf("table_ref found, now the rel exp length is %d\n", list_length(fnd->exps));
-//                    }
-//                }
-//            }
 
 			if (!fnd && res && lateral && sql->session->status != -ERR_AMBIGUOUS) {
 				/* reset error */
@@ -6335,6 +6326,108 @@ rel_loader_function(sql_query *query, symbol* fcall, list *fexps, sql_subfunc **
 	return rel_table_func(sql->sa, sq, e, fexps, (sq)?TABLE_FROM_RELATION:TABLE_PROD_FUNC);
 }
 
+// TODO Implement the function that builds the table reference raw input back
+//static char * rel_rebuild_table_ref_input(sql_rel *relation_tree);
+
+//static char * rel_rebuild_table_ref_input(sql_rel *relation_tree){
+//    if(!relation_tree)
+//        return NULL;
+//    switch(relation_tree -> op){
+//        case op_join:
+//        case op_left:
+//        case op_right:
+//        case op_full:
+//            lexps = _rel_projections(sql, rel->l, tname, settname, intern, basecol);
+//            exps_reset_props(lexps, is_right(rel->op) || is_full(rel->op));
+//            rexps = _rel_projections(sql, rel->r, tname, settname, intern, basecol);
+//            exps_reset_props(rexps, is_left(rel->op) || is_full(rel->op));
+//            return list_merge(lexps, rexps, (fdup)NULL);
+//        case op_groupby:
+//            if (list_empty(rel->exps) && rel->r) {
+//                list *r = rel->r;
+//                int label = 0;
+//
+//                if (!settname)
+//                    label = ++sql->label;
+//                exps = new_exp_list(sql->sa);
+//                for (node *en = r->h; en; en = en->next) {
+//                    sql_exp *e = en->data;
+//
+//                    if (basecol && !is_basecol(e))
+//                        continue;
+//                    if (intern || !is_intern(e)) {
+//                        append(exps, e = exp_alias_or_copy(sql, tname, exp_name(e), rel, e));
+//                        if (!settname) /* noname use alias */
+//                            exp_setrelname(sql->sa, e, label);
+//
+//                    }
+//                }
+//                return exps;
+//            }
+//            /* fall through */
+//        case op_project:
+//        case op_basetable:
+//        case op_table:
+//
+//        case op_union:
+//        case op_except:
+//        case op_inter:
+//            if (is_basetable(rel->op) && !rel->exps)
+//                return rel_base_projection(sql, rel, intern);
+//            if (rel->exps) {
+//                int label = 0;
+//
+//                if (!settname)
+//                    label = ++sql->label;
+//                exps = new_exp_list(sql->sa);
+//                for (node *en = rel->exps->h; en; en = en->next) {
+//                    sql_exp *e = en->data;
+//
+//                    if (basecol && !is_basecol(e))
+//                        continue;
+//                    if (intern || !is_intern(e)) {
+//                        append(exps, e = exp_alias_or_copy(sql, tname, exp_name(e), rel, e));
+//                        if (!settname) /* noname use alias */
+//                            exp_setrelname(sql->sa, e, label);
+//
+//                    }
+//                }
+//                return exps;
+//            }
+//            /* I only expect set relations to hit here */
+//            assert(is_set(rel->op));
+//            lexps = _rel_projections(sql, rel->l, tname, settname, intern, basecol);
+//            rexps = _rel_projections(sql, rel->r, tname, settname, intern, basecol);
+//            if (lexps && rexps) {
+//                int label = 0;
+//
+//                if (!settname)
+//                    label = ++sql->label;
+//                assert(list_length(lexps) == list_length(rexps));
+//                for (node *en = lexps->h; en; en = en->next) {
+//                    sql_exp *e = en->data;
+//
+//                    e->card = rel->card;
+//                    if (!settname) /* noname use alias */
+//                        exp_setrelname(sql->sa, e, label);
+//                }
+//            }
+//            return lexps;
+//        case op_ddl:
+//        case op_semi:
+//        case op_anti:
+//
+//        case op_select:
+//        case op_topn:
+//        case op_sample:
+//            // TODO Here the matrix transpose should return a list of place holder exps
+//        case op_matrix_transpose:
+//            return _rel_projections(sql, rel->l, tname, settname, intern, basecol);
+//        default:
+//            return NULL;
+//    }
+//}
+
 static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
 
 static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
@@ -6375,7 +6468,7 @@ rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *colum
 }
 
 
-// TODO Write a function that detects transpose node in a sql_rel tree
+
 static sql_rel *
 rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol){
     sql_allocator *sa = query -> sql ->sa;
@@ -6389,6 +6482,10 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
 
     // Resolve possible sub queries in table_ref, if it is simply a table reference, it will also be processed here
     sql_rel *sub_rel = table_ref(query, relation_tree, table_ref_symbol, 0, NULL);
+
+    // If there are already another transpose in the sub relation, we throw an error
+    if(rel_has_transpose(sub_rel))
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "More than one transpose was nested\n");
 
     // Get list of expression (in the simplest occasion, the column references) of ordering schema
     list *ordering_exps = rel_ordering_schema_exps(query, &sub_rel, ordering_schema_symbols);

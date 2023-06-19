@@ -15,6 +15,7 @@
 #include "rel_prop.h"
 #include "string.h"
 
+// Compares two column expression, returns 0 if two sql_exp points to same column on the same table
 int exp_column_cmp(void *left, void *right)
 {
     sql_exp *left_column_expression = (sql_exp *)left;
@@ -25,9 +26,9 @@ int exp_column_cmp(void *left, void *right)
     // and r pointer points to the column name
     if(strcmp((char *)left_column_expression -> l,(char *) right_column_expression -> l) == 0
             && strcmp((char *)left_column_expression -> r, (char *)right_column_expression -> r) == 0){
-        return 1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 comp_type
