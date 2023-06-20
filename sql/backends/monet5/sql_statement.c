@@ -3818,6 +3818,32 @@ stmt_alias(backend *be, stmt *op1, const char *tname, const char *alias)
 	return stmt_alias_(be, op1, tname, alias);
 }
 
+InstrPtr stmt_matrix_transpose_instr(backend *be);
+
+stmt *
+stmt_matrix_transpose(backend *be, list *order_alignment_stmt, list *application_alignment_stmt)
+{
+    // TODO to complete
+    mvc *sql = be -> mvc;
+    InstrPtr transpose_instruction = stmt_matrix_transpose_instr(be);
+    stmt *s = stmt_create(sql->sa, st_list);
+    s -> op4.lval = list_concat(order_alignment_stmt, application_alignment_stmt);
+    s -> q = transpose_instruction;
+    s -> nr = getDestVar(transpose_instruction);
+
+    return s;
+}
+
+InstrPtr stmt_matrix_transpose_instr(backend *be) {
+    // TODO add reference to real transpose instruction
+    MalBlkPtr mb = be->mb;
+    InstrPtr q = NULL;
+    q = newStmt(mb, algebraRef, projectionRef);
+    if (q == NULL)
+        return NULL;
+    return q;
+}
+
 sql_subtype *
 tail_type(stmt *st)
 {

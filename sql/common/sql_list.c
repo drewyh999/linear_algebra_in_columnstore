@@ -169,6 +169,15 @@ list_append_node(list *l, node *n)
 	return l;
 }
 
+// Concatenate two list
+list *
+list_concat(list *l, list *r){
+    for(node *n = r -> h; n; n = n -> next){
+        list_append_node(l, n);
+    }
+    return l;
+}
+
 list *
 list_append(list *l, void *data)
 {

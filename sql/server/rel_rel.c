@@ -28,7 +28,6 @@ rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order
     rel->op = op_matrix_transpose;
     rel->exps = application_schema_exps;
     rel->card = CARD_MULTI;
-    // TODO Use mapi API to decide the number of columns here
     rel->nrcols = table_ref_relation -> nrcols;
     return rel;
 }
@@ -1067,7 +1066,6 @@ _rel_projections(mvc *sql, sql_rel *rel, const char *tname, int settname, int in
 	case op_select:
 	case op_topn:
 	case op_sample:
-    // TODO Here the matrix transpose should return a list of place holder exps
     case op_matrix_transpose:
 		return _rel_projections(sql, rel->l, tname, settname, intern, basecol);
 	default:

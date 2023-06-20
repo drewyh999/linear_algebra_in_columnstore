@@ -269,4 +269,6 @@ extern const char *schema_name(sql_allocator *sa, stmt *st);
 extern stmt *const_column(backend *ba, stmt *val);
 extern stmt *stmt_fetch(backend *ba, stmt *val);
 
+extern stmt *stmt_matrix_transpose(backend *be, list *order_alignment_stmt, list *application_alignment_stmt);
+
 #endif /* _SQL_STATEMENT_H_ */

@@ -5455,6 +5455,7 @@ rel_table_exp(sql_query *query, sql_rel **rel, symbol *column_e, bool single_exp
 				*rel = project->l;
 			}
 		}
+        // TODO here the pipline does not support project on nothing with using select *, otherwise it will tell Table expression without table name
 		if ((exps || (exps = rel_table_projections(sql, project, tname, 0)) != NULL) && !list_empty(exps)) {
 			if (!(exps = check_distinct_exp_names(sql, exps)))
 				return sql_error(sql, 02, SQLSTATE(42000) "Duplicate column names in table%s%s%s projection list", tname ? " '" : "", tname ? tname : "", tname ? "'" : "");
