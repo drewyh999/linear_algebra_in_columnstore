@@ -33,6 +33,8 @@ static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tre
 
 static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
 
+static sql_exp *get_exp_with_name(sql_allocator *sa, char *relation_name, char *column_name);
+
 
 static symbdata get_element_by_index(dlist *list_in, int index){
     dnode *res = list_in -> h;
@@ -1169,6 +1171,10 @@ rel_column_ref(sql_query *query, sql_rel **rel, symbol *column_r, int f)
 
 	if (dlist_length(l) == 1) {
 		const char *name = l->h->data.sval;
+
+        // If we are trying to refer to a column over a transpose, then we ignore the unknown columns
+        if(rel_has_transpose(inner))
+            return get_exp_with_name(sql -> sa, NULL, l->h->data.sval);
 
 		if (!exp && inner)
 			if (!(exp = rel_bind_column(sql, inner, name, f, 0)) && sql->session->status == -ERR_AMBIGUOUS)
@@ -6435,7 +6441,7 @@ static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tre
 
 static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
 
-static sql_exp *get_placeholder_exp(sql_allocator *sa);
+
 
 static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps) {
     if(query == NULL || relation_tree == NULL || ordering_exps == NULL){
@@ -6500,7 +6506,7 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     // r points to the ordering schema expressions, exps contains application schema expressions
     relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps);
 
-    sql_exp *placeholder_expression = get_placeholder_exp(sa);
+    sql_exp *placeholder_expression = get_exp_with_name(sa, "%%TRANSPOSE%%", "%%PLACEHOLDER%%");
 
     list *projection_list = new_exp_list(sa);
 
@@ -6511,10 +6517,10 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     return relation_tree;
 }
 
-static sql_exp *get_placeholder_exp(sql_allocator *sa) {
+static sql_exp *get_exp_with_name(sql_allocator *sa, char *relation_name, char *column_name) {
     sql_exp *result = (sql_exp *)sa_alloc(sa, sizeof(sql_exp));
-    result -> l = "%%TRANSPOSE%%";
-    result -> r = "%%PLACEHOLDER%%";
+    result -> l = relation_name;
+    result -> r = column_name;
     result -> alias.name = NULL;
     result -> alias.rname = NULL;
     result -> alias.label = 0;
