@@ -6435,6 +6435,8 @@ static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tre
 
 static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
 
+static sql_exp *get_placeholder_exp(sql_allocator *sa);
+
 static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps) {
     if(query == NULL || relation_tree == NULL || ordering_exps == NULL){
         return NULL;
@@ -6498,5 +6500,44 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     // r points to the ordering schema expressions, exps contains application schema expressions
     relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps);
 
+    sql_exp *placeholder_expression = get_placeholder_exp(sa);
+
+    list *projection_list = new_exp_list(sa);
+
+    list_append(projection_list, placeholder_expression);
+
+    relation_tree = rel_project(sa, relation_tree, projection_list);
+
     return relation_tree;
+}
+
+static sql_exp *get_placeholder_exp(sql_allocator *sa) {
+    sql_exp *result = (sql_exp *)sa_alloc(sa, sizeof(sql_exp));
+    result -> l = "%%TRANSPOSE%%";
+    result -> r = "%%PLACEHOLDER%%";
+    result -> alias.name = NULL;
+    result -> alias.rname = NULL;
+    result -> alias.label = 0;
+    result -> symmetric = 0;
+    result -> used = 0;
+    result -> unique = 0;
+    result -> base = 1;
+    result -> ascending = 0;
+    result -> card = 3;
+    result -> argument_independence = 0;
+    result -> semantics = 0;
+    result -> nulls_last = 0;
+    result -> intern = 0;
+    result -> flag = 0;
+    result -> distinct = 0;
+    result -> zero_if_empty = 0;
+    result -> need_no_nil = 0;
+    result -> has_no_nil = 0;
+    result -> ref = 0;
+    result -> anti = 0;
+    result -> type = e_column;
+    result -> f = NULL;
+    result -> p = NULL;
+    result -> tpe.type = NULL;
+    return result;
 }
