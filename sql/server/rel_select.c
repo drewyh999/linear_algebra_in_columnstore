@@ -5734,9 +5734,6 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 		 * and rel_table_exp.
 		 */
 		list *te = NULL;
-        if(n -> data.sym -> type == SQL_TABLE && n -> data.sym -> data.lval -> h -> data.sval == NULL){
-            printf("Here");
-        }
 		sql_exp *ce = rel_column_exp(query, &inner, n->data.sym, sql_sel | group_totals);
 
 		if (ce) {
@@ -5744,7 +5741,13 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 			rel = inner;
 			continue;
 		} else {
-			te = rel_table_exp(query, &rel, n->data.sym, !list_length(pexps) && !n->next);
+            if(!rel_has_transpose(rel)) {
+                te = rel_table_exp(query, &rel, n->data.sym, !list_length(pexps) && !n->next);
+            }
+            else{
+                te = new_exp_list(sql -> sa);
+                te = append(te, get_exp_with_name(sql -> sa, "%%TRANSPOSE%%", "%%PLACEHOLDER%%"));
+            }
 		}
 		if (!ce && !te) {
 			if (sql->errstr[0])
@@ -6506,13 +6509,13 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     // r points to the ordering schema expressions, exps contains application schema expressions
     relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps);
 
-    sql_exp *placeholder_expression = get_exp_with_name(sa, "%%TRANSPOSE%%", "%%PLACEHOLDER%%");
+//    sql_exp *placeholder_expression = get_exp_with_name(sa, "%%TRANSPOSE%%", "%%PLACEHOLDER%%");
 
-    list *projection_list = new_exp_list(sa);
-
-    list_append(projection_list, placeholder_expression);
-
-    relation_tree = rel_project(sa, relation_tree, projection_list);
+//    list *projection_list = new_exp_list(sa);
+//
+//    list_append(projection_list, placeholder_expression);
+//
+//    relation_tree = rel_project(sa, relation_tree, projection_list);
 
     return relation_tree;
 }
