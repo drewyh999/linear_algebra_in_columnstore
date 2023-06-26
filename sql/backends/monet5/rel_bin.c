@@ -1795,28 +1795,11 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 	stmt *dels = stmt_tid(be, t, rel->flag == REL_PARTITION), *col = NULL;
 	node *en;
 
-    if(rel->l){
-        if(strcmp(((sql_table*) rel->l)->base.name,"people") == 0){
-
-                fprintf(stderr, "sql_rel's exp length is %d\n", list_length(rel->exps));
-
-        }
-    }
-
 	/* add aliases */
 	assert(rel->exps);
 	for( en = rel->exps->h; en && !col; en = en->next ) {
 		sql_exp *exp = en->data;
 		const char *oname = exp->r;
-
-//        if(rel->l){
-//            if(strcmp(((sql_table*) rel->l)->base.name,"people") == 0){
-//
-//                fprintf(stderr, " exp name is %s\n", oname);
-//
-//            }
-//        }
-//        fprintf(stderr, " exp name is %s\n", oname);
 
 		if (is_func(exp->type) || (oname[0] == '%' && strcmp(oname, TID) == 0))
 			continue;
@@ -1840,14 +1823,6 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 		const char *rname = exp_relname(exp)?exp_relname(exp):exp->l;
 		const char *oname = exp->r;
 		stmt *s = NULL;
-//        if(rel->l){
-//            if(strcmp(((sql_table*) rel->l)->base.name,"people") == 0){
-//
-//                printf(" exp name is %s\n", oname);
-//                printf(" exp type is %d \n", exp -> type);
-//            }
-//        }
-//        fprintf(stderr, " exp name is %s\n", oname);
 
 		assert(!is_func(exp->type));
 		if (oname[0] == '%' && strcmp(oname, TID) == 0) {
@@ -1873,9 +1848,6 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 			sql_column *c = find_sql_column(t, oname);
 
 			s = (c == fcol) ? col : stmt_col(be, c, NULL/*dels*/, dels->partition);
-            if(strcmp(s->tname, "people") == 0){
-                printf("column name of stmt_col result is %s\n", s->cname);
-            }
 		}
 		s->tname = rname;
 		s->cname = exp_name(exp);

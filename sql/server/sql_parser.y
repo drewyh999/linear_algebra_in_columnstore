@@ -3400,11 +3400,12 @@ table_ref:
  ;
 
 matrix_operation:
-    TRANSPOSE '(' table_ref BY column_ref_commalist ')'
+    TRANSPOSE '(' table_ref BY column_ref_commalist ')' table_name
     				{
 				  dlist *l = L();
 				  append_symbol(l, $3);
 				  append_list(l, $5);
+				  append_symbol(l, $7);
 				  $$ = _symbol_create_list(SQL_TRANSPOSE, l);
     				}
  ;

@@ -357,7 +357,10 @@ query_exp_optname(sql_query *query, sql_rel *r, symbol *q, list *refs)
 
         case SQL_TRANSPOSE:
         {
-            return rel_matrix_transpose_query(query, r, q);
+            sql_rel *tq =  rel_matrix_transpose_query(query, r, q);
+            if (!tq)
+                return NULL;
+            return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
         }
         default:
             (void) sql_error(sql, 02, SQLSTATE(42000) "case %d %s", (int) q->token, token2string(q->token));
