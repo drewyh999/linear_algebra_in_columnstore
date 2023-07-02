@@ -1086,6 +1086,9 @@ bool rel_has_transpose(sql_rel *relation_tree)
     bool right;
     if(relation_tree == NULL)
         return false;
+    if(!relation_tree -> op){
+        return false;
+    }
     switch (relation_tree -> op) {
         case op_join:
         case op_left:
@@ -1101,7 +1104,6 @@ bool rel_has_transpose(sql_rel *relation_tree)
         case op_except:
         case op_groupby:
         case op_project:
-        case op_table:
             left = false;
             right = false;
             if(relation_tree -> l)
@@ -1116,6 +1118,7 @@ bool rel_has_transpose(sql_rel *relation_tree)
         case op_merge:
         case op_ddl:
         case op_basetable:
+        case op_table:
             break;
         case op_matrix_transpose:
             return true;

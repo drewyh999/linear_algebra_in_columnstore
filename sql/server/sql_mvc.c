@@ -1563,7 +1563,7 @@ sql_processrelation(mvc *sql, sql_rel *rel, int instantiate, int value_based_opt
 {
 	if (rel)
 		rel = rel_unnest(sql, rel);
-    // Don't optimize when there is a transpose in the rel tree since we need to delay every projection
+    // TODO Should also modify corresponding optimizer operations when done with other part
 	if (rel && !rel_has_transpose(rel))
 		rel = rel_optimizer(sql, rel, instantiate, value_based_opt, storage_based_opt);
 	return rel;

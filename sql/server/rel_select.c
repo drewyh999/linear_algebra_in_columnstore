@@ -28,14 +28,12 @@
 #define SQL_REL_DEBUG
 #define VALUE_FUNC(f) (f->func->type == F_FUNC || f->func->type == F_FILT)
 #define check_card(card,f) ((card == card_none && !f->res) || (CARD_VALUE(card) && f->res && VALUE_FUNC(f)) || card == card_loader || (card == card_relation && f->func->type == F_UNION))
+
 static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
 
 static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
 
 static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
-
-static sql_exp *get_exp_with_name(sql_allocator *sa, char *relation_name, char *column_name);
-
 
 static symbdata get_element_by_index(dlist *list_in, int index){
     dnode *res = list_in -> h;
@@ -1176,10 +1174,6 @@ rel_column_ref(sql_query *query, sql_rel **rel, symbol *column_r, int f)
 	if (dlist_length(l) == 1) {
 		const char *name = l->h->data.sval;
 
-        // If we are trying to refer to a column over a transpose, then we ignore the unknown columns
-        if(rel_has_transpose(inner))
-            return get_exp_with_name(sql -> sa, NULL, l->h->data.sval);
-
 		if (!exp && inner)
 			if (!(exp = rel_bind_column(sql, inner, name, f, 0)) && sql->session->status == -ERR_AMBIGUOUS)
 				return NULL;
@@ -1461,6 +1455,21 @@ rel_convert_types(mvc *sql, sql_rel *ll, sql_rel *rr, sql_exp **L, sql_exp **R, 
 	sql_exp *rs = *R;
 	sql_subtype *lt = exp_subtype(ls);
 	sql_subtype *rt = exp_subtype(rs);
+
+//     If either side of the equation contains columns after transposition, we skip type checks
+    if(ll && rr && ls -> alias.rname && rs -> alias.rname){
+        const char *left_table_name = ls -> alias.rname;
+        const char *right_table_name = rs -> alias.rname;
+
+        // Try to find transposed columns in both sides of the rel
+        sql_exp *left_table_exp = rel_bind_column2(sql, ll, left_table_name, TRANSPOSED_COLUMNS, 0);
+        sql_exp *right_table_exp = rel_bind_column2(sql, rr, right_table_name, TRANSPOSED_COLUMNS,0);
+
+        // Skip the type conversion if either side of the equation is from a transposed column
+        if(left_table_exp || right_table_exp){
+            return 0;
+        }
+    }
 
 	if (!rt && !lt) {
 		sql_error(sql, 01, SQLSTATE(42000) "Cannot have a parameter (?) on both sides of an expression");
@@ -4257,6 +4266,18 @@ rel_group_column(sql_query *query, sql_rel **rel, symbol *grp, dlist *selection,
 			return NULL;
 		}
 	}
+
+    // If the group by column is a transposed column, we skip the type check
+    if(e){
+        const char *table_name = e -> alias.rname;
+        // Try to find transposed columns in the rel
+        sql_exp *table_exp = rel_bind_column2(sql, *rel, table_name, TRANSPOSED_COLUMNS, 0);
+        // Skip the type conversion if the group by column is from a transposed column
+        if(table_exp){
+            return e;
+        }
+    }
+
 	if (!exp_subtype(e))
 		return sql_error(sql, 01, SQLSTATE(42000) "Cannot have a parameter (?) for group by column");
 	return e;
@@ -5730,8 +5751,6 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 	inner = rel;
 	pexps = sa_list(sql->sa);
 
-    // If there is a transpose in the relation which we try to select, we run mapi API and try to project on placeholders
-    // Where we decide the selection is valid or not
 	for (dnode *n = sn->selection->h; n; n = n->next) {
 		/* Here we could get real column expressions
 		 * (including single atoms) but also table results.
@@ -5746,13 +5765,7 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 			rel = inner;
 			continue;
 		} else {
-            if(!rel_has_transpose(rel)) {
-                te = rel_table_exp(query, &rel, n->data.sym, !list_length(pexps) && !n->next);
-            }
-            else{
-                te = new_exp_list(sql -> sa);
-                te = append(te, get_exp_with_name(sql -> sa, "%%TRANSPOSE%%", "%%PLACEHOLDER%%"));
-            }
+            te = rel_table_exp(query, &rel, n->data.sym, !list_length(pexps) && !n->next);
 		}
 		if (!ce && !te) {
 			if (sql->errstr[0])
@@ -6496,7 +6509,8 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     dlist *data_list = transpose_symbol -> data.lval;
     symbol *table_ref_symbol = get_element_by_index(data_list, 0).sym;
     dlist *ordering_schema_symbols = get_element_by_index(data_list, 1).lval;
-    if(!table_ref_symbol || !ordering_schema_symbols)
+    symbol *transpose_alias_symbol = get_element_by_index(data_list, 2).sym;
+    if(!ordering_schema_symbols)
         return sql_error(query -> sql, 02, SQLSTATE(42000) "No ordering schema specified\n");
 
     // Resolve possible sub queries in table_ref, if it is simply a table reference, it will also be processed here
@@ -6516,44 +6530,15 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     // r points to the ordering schema expressions, exps contains application schema expressions
     relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps);
 
-//    sql_exp *placeholder_expression = get_exp_with_name(sa, "%%TRANSPOSE%%", "%%PLACEHOLDER%%");
+    char *alias_name = transpose_alias_symbol->data.lval->h->data.sval;
 
-//    list *projection_list = new_exp_list(sa);
-//
-//    list_append(projection_list, placeholder_expression);
-//
-//    relation_tree = rel_project(sa, relation_tree, projection_list);
+    sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, NULL, 3, 1, 0, 0);
+
+    list *projection_list = new_exp_list(sa);
+
+    list_append(projection_list, placeholder_expression);
+
+    relation_tree = rel_project(sa, relation_tree, projection_list);
 
     return relation_tree;
-}
-
-static sql_exp *get_exp_with_name(sql_allocator *sa, char *relation_name, char *column_name) {
-    sql_exp *result = (sql_exp *)sa_alloc(sa, sizeof(sql_exp));
-    result -> l = relation_name;
-    result -> r = column_name;
-    result -> alias.name = NULL;
-    result -> alias.rname = NULL;
-    result -> alias.label = 0;
-    result -> symmetric = 0;
-    result -> used = 0;
-    result -> unique = 0;
-    result -> base = 1;
-    result -> ascending = 0;
-    result -> card = 3;
-    result -> argument_independence = 0;
-    result -> semantics = 0;
-    result -> nulls_last = 0;
-    result -> intern = 0;
-    result -> flag = 0;
-    result -> distinct = 0;
-    result -> zero_if_empty = 0;
-    result -> need_no_nil = 0;
-    result -> has_no_nil = 0;
-    result -> ref = 0;
-    result -> anti = 0;
-    result -> type = e_column;
-    result -> f = NULL;
-    result -> p = NULL;
-    result -> tpe.type = NULL;
-    return result;
 }

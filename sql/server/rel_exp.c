@@ -2554,6 +2554,7 @@ exps_bind_column2(list *exps, const char *rname, const char *cname, int *multipl
 		node *en;
 
 		if (exps) {
+            // TODO Maybe we should also care about hash lookup?
 			if (!exps->ht && list_length(exps) > HASH_MIN_SIZE) {
 				exps->ht = hash_new(exps->sa, list_length(exps), (fkeyvalue)&exp_key);
 				if (exps->ht == NULL)
@@ -2588,6 +2589,15 @@ exps_bind_column2(list *exps, const char *rname, const char *cname, int *multipl
 		}
 		for (en = exps->h; en; en = en->next ) {
 			sql_exp *e = en->data;
+
+            // If the column is a transposed column, we only care if the relation match is valid
+            if (e && e->alias.name && e->alias.rname && strcmp(e->alias.name, TRANSPOSED_COLUMNS) == 0 && strcmp(e->alias.rname, rname) == 0) {
+                if (res && multiple)
+                    *multiple = 1;
+                if (!res)
+                    res = e;
+                continue;
+            }
 
 			if (e && e->alias.name && e->alias.rname && strcmp(e->alias.name, cname) == 0 && strcmp(e->alias.rname, rname) == 0) {
 				if (res && multiple)
