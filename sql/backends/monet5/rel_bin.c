@@ -2490,6 +2490,8 @@ get_equi_joins_first(mvc *sql, list *exps, int *equality_only)
 static stmt *
 rel2bin_join(backend *be, sql_rel *rel, list *refs)
 {
+//    printf("rel2bin_join rel:\n");
+//    _rel_print(be->mvc, rel);
 	mvc *sql = be->mvc;
 	list *l, *sexps = NULL, *l2 = NULL;
 	node *en = NULL, *n;
@@ -3149,6 +3151,7 @@ rel2bin_union(backend *be, sql_rel *rel, list *refs)
 		const char *nme = column_name(sql->sa, c1);
 		stmt *s;
 
+        // Appending the projection c1 on c2
 		s = stmt_append(be, create_const_column(be, c1), c2);
 		s = stmt_alias(be, s, rnme, nme);
 		list_append(l, s);

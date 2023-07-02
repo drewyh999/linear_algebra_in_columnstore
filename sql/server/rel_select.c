@@ -23,6 +23,7 @@
 #include "rel_schema.h"
 #include "rel_unnest.h"
 #include "rel_sequence.h"
+#include "../backends/monet5/sql_gencode.h"
 
 #define SQL_REL_DEBUG
 #define VALUE_FUNC(f) (f->func->type == F_FUNC || f->func->type == F_FILT)
@@ -5703,6 +5704,7 @@ join_on_column_name(sql_query *query, sql_rel *rel, sql_rel *t1, sql_rel *t2, in
 		set_not_unique(re);
 		append(outexps, re);
 	}
+//    _rel_print(sql, rel);
 	rel = rel_project(sql->sa, rel, outexps);
 	return rel;
 }
@@ -6104,6 +6106,8 @@ rel_joinquery_(sql_query *query, sql_rel *rel, symbol *tab1, int natural, jt joi
 	if (inner && is_outerjoin(inner->op))
 		set_processed(inner);
 	set_processed(rel);
+//    printf("rel_select join has rel:\n");
+//    _rel_print(sql, rel);
 	query_processed(query);
 	return rel;
 }

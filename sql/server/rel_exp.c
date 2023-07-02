@@ -2475,6 +2475,8 @@ exp_key( sql_exp *e )
 	return 0;
 }
 
+// Returns the expression in the exps list that has the column name of cname, set ambiguous if the reference is ambiguous and
+// set multiple to 1 if there are more than one expression in the exps list that has the cname
 sql_exp *
 exps_bind_column(list *exps, const char *cname, int *ambiguous, int *multiple, int no_tname)
 {
