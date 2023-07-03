@@ -1456,7 +1456,16 @@ rel_convert_types(mvc *sql, sql_rel *ll, sql_rel *rr, sql_exp **L, sql_exp **R, 
 	sql_subtype *lt = exp_subtype(ls);
 	sql_subtype *rt = exp_subtype(rs);
 
-//     If either side of the equation contains columns after transposition, we skip type checks
+    // If either side of equation contains columns after transposition like r.$ = s.$
+    // We skip type check
+    if(ls -> alias.name && rs -> alias.name){
+        if(strcmp(ls -> alias.name, TRANSPOSED_COLUMNS) == 0 || strcmp(rs -> alias.name, TRANSPOSED_COLUMNS) == 0){
+            return 0;
+        }
+    }
+
+    // If either side of the equation contains reference to a column in a transposed relation like r.a = s.a
+    // and either r or s is a transpose relation, we skip the type check
     if(ll && rr && ls -> alias.rname && rs -> alias.rname){
         const char *left_table_name = ls -> alias.rname;
         const char *right_table_name = rs -> alias.rname;
