@@ -299,8 +299,18 @@ CMDBATvacuum(bat *r, const bat *bid)
 	return MAL_SUCCEED;
 }
 
+static str
+CMDBATtake(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
+    (void) cntxt;
+    (void) mb;
+    (void) stk;
+    (void) pci;
+    return MAL_SUCCEED;
+}
+
 #include "mel.h"
 mel_func batExtensions_init_funcs[] = {
+
  pattern("bat", "new", CMDBATnew, false, "", args(1,2, batargany("",1),argany("tt",1))),
  pattern("bat", "new", CMDBATnew, false, "", args(1,3, batargany("",1),argany("tt",1),arg("size",int))),
  pattern("bat", "new", CMDBATnew, false, "", args(1,4, batargany("",1),argany("tt",1),arg("size",lng),arg("persist",bit))),
@@ -310,6 +320,7 @@ mel_func batExtensions_init_funcs[] = {
  pattern("bat", "single", CMDBATsingle, false, "Create a BAT with a single elemenet", args(1,2, batargany("",1),argany("val",1))),
  pattern("bat", "partition", CMDBATpartition, false, "Create a serie of slices over the BAT argument. The BUNs are distributed evenly.", args(1,2, batvarargany("",1),batargany("b",1))),
  pattern("bat", "partition", CMDBATpartition2, false, "Create the n-th slice over the BAT broken into several pieces.", args(1,4, batargany("",1),batargany("b",1),arg("pieces",int),arg("n",int))),
+ pattern("bat", "take", CMDBATtake, false, "Take the corresponding BAT with given name in a BAT storing BAT ids", args(1, 3, batargany("b",0),arg("cname", str), batarg("array", bat))),
  command("bat", "imprints", CMDBATimprints, false, "", args(1,2, arg("",void),batarg("b",bte))),
  command("bat", "imprints", CMDBATimprints, false, "", args(1,2, arg("",void),batarg("b",sht))),
  command("bat", "imprints", CMDBATimprints, false, "", args(1,2, arg("",void),batarg("b",int))),

@@ -1009,6 +1009,34 @@ stmt_mirror(backend *be, stmt *s)
 	return NULL;
 }
 
+// Similar to stmt_result but does not check the op1's nr
+stmt *
+stmt_result2(backend *be, stmt *s, int nr)
+{
+    stmt *ns;
+
+
+    ns = stmt_create(be->mvc->sa, st_result);
+    if(!ns) {
+        return NULL;
+    }
+     if (nr >= 0) {
+        int v = getArg(s->q, nr);
+
+        assert(s->q->retc > nr);
+        ns->nr = v;
+    }
+
+    ns->op1 = s;
+    ns->flag = nr;
+    ns->nrcols = s->nrcols;
+    ns->key = s->key;
+    ns->aggr = s->aggr;
+    ns->cname = s->cname;
+    ns->tname = s->tname;
+    return ns;
+}
+
 stmt *
 stmt_result(backend *be, stmt *s, int nr)
 {
@@ -2274,6 +2302,35 @@ stmt_left_project(backend *be, stmt *op1, stmt *op2, stmt *op3)
 }
 
 stmt *
+stmt_take(backend *be, stmt *op1, const char *cname) {
+    MalBlkPtr mb = be->mb;
+    InstrPtr q = NULL;
+
+    // Use bat.take to take the BAT with given cname
+    q = newStmt(mb, batRef, takeRef);
+    q = pushStr(mb, q, cname);
+    q = pushArgument(mb, q, op1->nr);
+
+    if (q) {
+        stmt *s = stmt_create(be->mvc->sa, st_result);
+        if (s == NULL) {
+            freeInstruction(q);
+            return NULL;
+        }
+
+        s->op1 = op1;
+        s->key = 0;
+        s->nrcols = 1;
+        s->nr = getDestVar(q);
+        s->q = q;
+        s->tname = op1->tname;
+        s->cname = cname;
+        return s;
+    }
+    return NULL;
+}
+
+stmt *
 stmt_dict(backend *be, stmt *op1, stmt *op2)
 {
 	MalBlkPtr mb = be->mb;
@@ -2474,6 +2531,14 @@ stmt_rs_column(backend *be, stmt *rs, int i, sql_subtype *tpe)
 		setVarType(mb, Id, newBatType(Tpe));		\
 		setVarFixed(mb, Id);						\
 		list = pushArgument(mb, list, Id);			\
+	} while (0)
+
+#define meta_without_pushing(P, Id, Tpe, Args)\
+do {											\
+		P = newStmtArgs(mb, batRef, packRef, Args);	\
+		Id = getArg(P,0);							\
+		setVarType(mb, Id, newBatType(Tpe));		\
+		setVarFixed(mb, Id);						\
 	} while (0)
 
 #define metaInfo(P,Tpe,Val)						\
@@ -2758,23 +2823,45 @@ stmt_list(backend *be, list *l)
 	return s;
 }
 
+static bool
+list_stmt_find_transpose(list *l){
+    if(!l)
+        return false;
+    for(node *n = l -> h; n; n = n -> next){
+        stmt *s = (stmt *)n -> data;
+        if(strcmp(s -> cname, "$") == 0){
+            return true;
+        }
+    }
+    return false;
+}
+
 static InstrPtr
 dump_header(mvc *sql, MalBlkPtr mb, list *l)
 {
 	node *n;
 	bool error = false;
 	// gather the meta information
-	int tblId, nmeId, tpeId, lenId, scaleId;
+	int tblId, nmeId, tpeId, lenId, scaleId, concatId = CONCAT_INIT_ID;
 	int args;
+    list *colVaridList;
 	InstrPtr list;
-	InstrPtr tblPtr, nmePtr, tpePtr, lenPtr, scalePtr;
+	InstrPtr tblPtr, nmePtr, tpePtr, lenPtr, scalePtr, concatPtr = NULL;
 
-	args = list_length(l) + 1;
+    bool hasTransposedHeader = list_stmt_find_transpose(l);
 
+    if(!hasTransposedHeader) {
+        args = list_length(l) + 1;
+    }
+    else {
+        args = MAX_TRANSPOSE_COLUMN_HEADER_AMOUNT + 1;
+        colVaridList = sa_list(sql -> sa);
+    }
 
     // Initialize a new MAL instruction with arg + 5 arguments and call sql.resultSet
-	list = newInstructionArgs(mb,sqlRef, resultSetRef, args + 5);
-	if(!list) {
+    list = newInstructionArgs(mb,sqlRef, resultSetRef, args + 5);
+
+    if(!list) {
 		return NULL;
 	}
 	getArg(list,0) = newTmpVariable(mb,TYPE_int);
@@ -2789,10 +2876,20 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 	} while (0)
      */
 	meta(tblPtr, tblId, TYPE_str, args);
-	meta(nmePtr, nmeId, TYPE_str, args);
-	meta(tpePtr, tpeId, TYPE_str, args);
-	meta(lenPtr, lenId, TYPE_int, args);
-	meta(scalePtr, scaleId, TYPE_int, args);
+
+    // If there are transposed columns in the result set, we don't push the meta info into argument list for now
+    if(!hasTransposedHeader) {
+        meta(nmePtr, nmeId, TYPE_str, args);
+        meta(tpePtr, tpeId, TYPE_str, args);
+        meta(lenPtr, lenId, TYPE_int, args);
+        meta(scalePtr, scaleId, TYPE_int, args);
+    }
+    else{
+        meta_without_pushing(tpePtr, tpeId, TYPE_str, args);
+        meta_without_pushing(lenPtr, lenId, TYPE_int, args);
+        meta_without_pushing(scalePtr, scaleId, TYPE_int, args);
+    }
+
 	if(tblPtr == NULL || nmePtr == NULL || tpePtr == NULL || lenPtr == NULL || scalePtr == NULL)
 		return NULL;
 
@@ -2805,8 +2902,15 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 		const char *tn = (tname) ? tname : _empty;
 		const char *sn = (sname) ? sname : _empty;
 		const char *cn = column_name(sql->sa, c);
+        bool currentTransposeDollar = strcmp(cn, "$") == 0;
 		const char *neat_table_name = sql_escape_ident(sql->ta, tn);
 		const char *neat_schema_name = sql_escape_ident(sql->ta, sn);
+        stmt *transposed_header_stmt = NULL;
+
+        // If the current stmt is a transposed column, we fetch it's header from the
+        if(currentTransposeDollar){
+            transposed_header_stmt = c -> op4.stval;
+        }
 		size_t fqtnl;
 		char *fqtn = NULL;
 
@@ -2815,11 +2919,67 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 			if(fqtn) {
 				snprintf(fqtn, fqtnl, "%s.%s", neat_schema_name, neat_table_name);
 				metaInfo(tblPtr,Str,fqtn);
-				metaInfo(nmePtr,Str,cn);
+                if(!hasTransposedHeader) {
+                    metaInfo(nmePtr, Str, cn);
+                }
+                else{
+                    // Deal with the first column header
+                    if(concatId == CONCAT_INIT_ID){
+                        // First header is transposed column header
+                        if(currentTransposeDollar){
+                            concatId = transposed_header_stmt -> nr;
+                            nmeId = concatId;
+                        }
+                        // First header is a concrete column header
+                        else{
+                            meta(nmePtr, nmeId, TYPE_str, args);
+                            metaInfo(nmePtr, Str, cn);
+                        }
+                    }
+                    // Deal with column headers in the middle
+                    else{
+                        // Middle header is a transposed column
+                        if(currentTransposeDollar){
+                            // Determine if we need to merge result of bat.append and bat.pack
+                            if(concatPtr && concatId != nmeId){
+                                InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 2);
+                                pushArgument(mb, i, concatId);
+                                pushArgument(mb, i, nmeId);
+                                concatId = getArg(i, 0);
+                                nmeId = concatId;
+                            }
+                            // Concatenate column header
+                            InstrPtr temp = newStmtArgs(mb, batRef, appendRef, 2);
+                            pushArgument(mb, temp, concatId);
+                            pushArgument(mb, temp, transposed_header_stmt -> nr);
+                            concatPtr = temp;
+                            concatId = getArg(temp, 0);
+                            nmeId = concatId;
+                            nmePtr = concatPtr;
+                        }
+                        // Middle header is a concrete column
+                        else{
+                            // Previous concatPtr is a bat.append, we should create a new bat.pack
+                            if(concatId != CONCAT_INIT_ID && concatId == nmeId){
+                                meta(nmePtr, nmeId, TYPE_str, args);
+                                metaInfo(nmePtr, Str, cn);
+                            }
+                            //Otherwise just directly append the column name to bat.pack
+                            else{
+                                metaInfo(nmePtr, Str, cn);
+                            }
+                        }
+                    }
+                }
 				metaInfo(tpePtr,Str,(t->type->localtype == TYPE_void ? "char" : t->type->base.name));
 				metaInfo(lenPtr,Int,t->digits);
 				metaInfo(scalePtr,Int,t->scale);
-				list = pushArgument(mb,list,c->nr);
+                if(!hasTransposedHeader){
+				    list = pushArgument(mb,list,c->nr);
+                }
+                else{
+                    list_append(colVaridList, &(c -> nr));
+                }
 			} else
 				error = true;
 		} else
@@ -2828,7 +2988,34 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 			return NULL;
 	}
 	sa_reset(sql->ta);
+    if(hasTransposedHeader){
+        // Determine if we need final merging of bat.pack and bat.append
+        if(concatPtr && concatId != nmeId){
+            InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 2);
+            pushArgument(mb, i, concatId);
+            pushArgument(mb, i, nmeId);
+            concatId = getArg(i, 0);
+            nmeId = concatId;
+        }
+        // Determine if the transposed column header is all the header we have
+        else if(!concatPtr && concatId != CONCAT_INIT_ID){
+            nmeId = concatId;
+        }
+        else{
+            return sql_error(sql, 02, SQLSTATE(42000) "RESULT PACKING: ConcatPtr not initialized as expected");
+        }
+        list = pushArgument(mb, list, nmeId);
+        list = pushArgument(mb, list, tpeId);
+        list = pushArgument(mb, list, lenId);
+        list = pushArgument(mb, list, scaleId);
+        // Push all the column results to sql.resultSet
+        for(node *nd = colVaridList -> h; nd; nd = nd -> next){
+            list = pushArgument(mb, list, *(int*)(nd -> data));
+        }
+    }
 	pushInstruction(mb,list);
+
+    printFunction(stdout_wastream(), mb, 0, 23);
 	return list;
 }
 
@@ -3817,31 +4004,48 @@ stmt_alias(backend *be, stmt *op1, const char *tname, const char *alias)
 		return op1;
 	return stmt_alias_(be, op1, tname, alias);
 }
-
-InstrPtr stmt_matrix_transpose_instr(backend *be);
-
 stmt *
-stmt_matrix_transpose(backend *be, list *order_alignment_stmt, list *application_alignment_stmt)
+stmt_matrix_transpose(backend *be, list *order_alignment_stmts, list *application_alignment_stmts, const char *transpose_name)
 {
-    // TODO to complete
     mvc *sql = be -> mvc;
-    InstrPtr transpose_instruction = stmt_matrix_transpose_instr(be);
-    stmt *s = stmt_create(sql->sa, st_list);
-    s -> op4.lval = list_concat(order_alignment_stmt, application_alignment_stmt);
-    s -> q = transpose_instruction;
-    s -> nr = getDestVar(transpose_instruction);
+    MalBlkPtr mb = be -> mb;
 
-    return s;
-}
-
-InstrPtr stmt_matrix_transpose_instr(backend *be) {
-    // TODO add reference to real transpose instruction
-    MalBlkPtr mb = be->mb;
-    InstrPtr q = NULL;
-    q = newStmt(mb, algebraRef, projectionRef);
-    if (q == NULL)
+    if(order_alignment_stmts -> cnt != 1){
+        (void) sql_error(sql, 10, SQLSTATE(42000) "TRANSPOSE: Only one ordering schema is allowed in transposition");
         return NULL;
-    return q;
+    }
+    InstrPtr transpose_instruction = newStmtArgs(mb, batcalcRef, transposeRef, order_alignment_stmts->cnt + application_alignment_stmts -> cnt );
+
+    stmt *order_alignment_stmt = ((stmt *)(order_alignment_stmts -> h -> data));
+    InstrPtr order_alignment_instr = order_alignment_stmt -> q;
+    // push returns, first returning parameter should be the transposed columns and second should be headers
+    int return_arg_id = getArg(transpose_instruction, 0);
+    setVarType(mb, return_arg_id, newBatType(TYPE_bat));
+    setVarFixed(mb, return_arg_id);
+    transpose_instruction = pushReturn(mb, transpose_instruction, newTmpVariable(mb ,newBatType(TYPE_str)));
+
+    transpose_instruction = pushArgument(mb, transpose_instruction, getDestVar(order_alignment_instr));
+
+    for(node *n = application_alignment_stmts -> h; n; n = n -> next){
+        stmt *application_alignment_stmt = ((stmt *)(n -> data));
+        InstrPtr application_alignment_instr = application_alignment_stmt -> q;
+        transpose_instruction = pushArgument(mb, transpose_instruction, getDestVar(application_alignment_instr));
+    }
+
+    stmt *s = stmt_create(sql -> sa, st_list);
+    if(s){
+        s -> op4.lval = list_concat(order_alignment_stmts, application_alignment_stmts);
+        s -> tname = transpose_name;
+        s -> nr = getDestVar(transpose_instruction);
+        s -> q = transpose_instruction;
+        // For the cname and name of these stmt after transposition, we still give it the $ as the column name
+        // so that operations above transpose can use it to identify transposed columns
+        s -> cname = "$";
+        s -> nrcols = 1;
+        return s;
+    }
+
+    return NULL;
 }
 
 sql_subtype *

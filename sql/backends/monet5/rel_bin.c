@@ -173,8 +173,12 @@ list_find_column(backend *be, list *l, const char *rname, const char *name )
 				const char *rnme = table_name(be->mvc->sa, s);
 				const char *nme = column_name(be->mvc->sa, s);
 
-				if (rnme && strcmp(rnme, rname) == 0 &&
-		 	            strcmp(nme, name) == 0) {
+                // If the column is a column after transposition, we should let it be found
+                // And if the column is a header information of transposition, we should also let it be found
+				if ((rnme && strcmp(rnme, rname) == 0 &&
+		 	            strcmp(nme, name) == 0 ) ||
+                        (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$") == 0) ||
+                        (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$H$") == 0)) {
 					res = s;
 					break;
 				}
@@ -200,8 +204,10 @@ list_find_column(backend *be, list *l, const char *rname, const char *name )
 			const char *rnme = table_name(be->mvc->sa, n->data);
 			const char *nme = column_name(be->mvc->sa, n->data);
 
-			if (rnme && strcmp(rnme, rname) == 0 &&
-				    strcmp(nme, name) == 0) {
+			if ((rnme && strcmp(rnme, rname) == 0 &&
+                 strcmp(nme, name) == 0 ) ||
+                (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$") == 0) ||
+                (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$H$") == 0)) {
 				res = n->data;
 				break;
 			}
@@ -1373,6 +1379,9 @@ exp_bin(backend *be, sql_exp *e, stmt *left, stmt *right, stmt *grp, stmt *ext, 
 			s = bin_find_column(be, right, e->l, e->r);
 		if (!s && left)
 			s = bin_find_column(be, left, e->l, e->r);
+        if(s && s -> cname && strcmp(s -> cname, "$") == 0 && strcmp(e -> alias.name, "$") != 0){
+            s = stmt_take(be, s, e -> alias.name);
+        }
 		if (s && grp)
 			s = stmt_project(be, ext, s);
 		if (!s && right) {
@@ -3474,8 +3483,12 @@ rel2bin_project(backend *be, sql_rel *rel, list *refs, sql_rel *topn)
 	for( en = rel->exps->h; en; en = en->next ) {
 		sql_exp *exp = en->data;
 		int oldvtop = be->mb->vtop, oldstop = be->mb->stop, oldvid = be->mb->vid;
-        // TODO probably here it cannot find the column
+
 		stmt *s = exp_bin(be, exp, sub, NULL /*psub*/, NULL, NULL, NULL, NULL, 0, 0, 0);
+
+        // If the found column is a concrete reference to a transposed column list, we fetch it out
+        // e.g. the exp is r.a while the statement found is r.$
+
         // s is the stmt struct
 		if (!s) { /* try with own projection as well, but first clean leftover statements */
 			clean_mal_statements(be, oldstop, oldvtop, oldvid);
@@ -6422,6 +6435,7 @@ subrel_bin(backend *be, sql_rel *rel, list *refs)
 
 static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list *refs) {
     stmt *subrel_stmts = subrel_bin(be, relation_tree -> l, refs);
+    subrel_stmts = subrel_project(be, subrel_stmts, NULL, relation_tree);
     assert(subrel_stmts);
     stmt *result = NULL;
     list *order_schema = (list *)relation_tree -> r;
@@ -6438,7 +6452,20 @@ static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list 
     list *order_part_alignment_stmts = alignment_projection_bin(be, sorted_order_schema_stmt, order_schema_stmts);
     list *application_part_alignment_stmts = alignment_projection_bin(be, sorted_order_schema_stmt, application_schema_stmts);
 
-    result = stmt_matrix_transpose(be, order_part_alignment_stmts, application_part_alignment_stmts);
+
+    stmt *transpose_stmt = stmt_matrix_transpose(be, order_part_alignment_stmts,
+                                                 application_part_alignment_stmts, relation_tree -> transpose_alias);
+
+    list *result_list = sa_list(be -> mvc -> sa);
+    stmt *transposed_columns_stmt = stmt_result2(be, transpose_stmt, 0);
+    stmt *transposed_header_stmt = stmt_result2(be, transpose_stmt, 1);
+    // Alias the transpose header as $H$ for packing function to identify and correctly pack results
+    transposed_header_stmt = stmt_alias(be, transposed_header_stmt, relation_tree -> transpose_alias, "$H$");
+    transposed_columns_stmt -> op4.stval = transposed_header_stmt;
+
+    list_append(result_list, transposed_columns_stmt);
+
+    result = stmt_list(be, result_list);
 
     return result;
 }
@@ -6534,11 +6561,7 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 
 	s = subrel_bin(be, rel, refs);
 	s = subrel_project(be, s, refs, rel);
-    if(rel -> l){
-        if(((sql_rel*)rel -> l) -> op == op_basetable){
-//            printf("here");
-        }
-    }
+
 	if (!s)
 		return NULL;
 	if (sqltype == Q_SCHEMA)

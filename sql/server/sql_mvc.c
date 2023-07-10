@@ -1564,7 +1564,7 @@ sql_processrelation(mvc *sql, sql_rel *rel, int instantiate, int value_based_opt
 	if (rel)
 		rel = rel_unnest(sql, rel);
     // TODO Should also modify corresponding optimizer operations when done with other part
-	if (rel && !rel_has_transpose(rel))
+	if (rel && !rel_has_transpose(rel) && false)
 		rel = rel_optimizer(sql, rel, instantiate, value_based_opt, storage_based_opt);
 	return rel;
 }

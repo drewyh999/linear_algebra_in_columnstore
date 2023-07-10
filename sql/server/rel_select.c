@@ -5898,13 +5898,7 @@ rel_query(sql_query *query, sql_rel *rel, symbol *sq, int toplevel, exp_kind ek)
 
 	if (res)
 		rel = rel_select_exp(query, res, sn, ek);
-    if(res){
-        if((sql_table*)res->l){
-            if(strcmp(((sql_table*)res->l)->base.name,"people") == 0){
-                printf("after rel_select_exp, now the rel exp length is %d\n", list_length(res->exps));
-            }
-        }
-    }
+
 	if (!rel && res)
 		rel_destroy(res);
 	return rel;
@@ -6537,9 +6531,8 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
 
     // Construct the matrix transpose node in sql_rel tree, l points to the subtree to table references,
     // r points to the ordering schema expressions, exps contains application schema expressions
-    relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps);
-
     char *alias_name = transpose_alias_symbol->data.lval->h->data.sval;
+    relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps, alias_name);
 
     sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, NULL, 3, 1, 0, 0);
 

@@ -300,6 +300,7 @@ typedef struct relation {
 	 */
 	 used:3;
 	void *p;	/* properties for the optimizer, distribution */
+    char *transpose_alias; /* Storing the alias given to a transpose node and fetched in rel_bin to compose the transposed column relation name*/
 } sql_rel;
 
 #endif /* SQL_RELATION_H */

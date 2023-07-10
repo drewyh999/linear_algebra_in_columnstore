@@ -120,7 +120,8 @@ extern list *rel_dependencies(mvc *sql, sql_rel *r);
 bool rel_has_transpose(sql_rel *relation_tree);
 
 // Matrix operations
-extern sql_rel *rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order_schema_exps, list *application_schema_exps);
+extern sql_rel *rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order_schema_exps,
+                                     list *application_schema_exps, char *transpose_alias);
 
 typedef struct visitor {
 	int changes;

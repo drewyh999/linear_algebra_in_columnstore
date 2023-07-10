@@ -4373,7 +4373,7 @@ BATcalcadd(BAT *b1, BAT *b2, BAT *s1, BAT *s2, int tp, bool abort_on_error)
 	lng t0 = 0;
 	BAT *bn;
 	BUN nils;// bat contains null value or not
-	BUN ncand;//number of candidates
+	BUN ncand;//number of candidates -> number of elements in either BATs
 	struct canditer ci1, ci2;
 
 	TRC_DEBUG_IF(ALGO) t0 = GDKusec();

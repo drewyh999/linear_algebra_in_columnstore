@@ -108,6 +108,8 @@ typedef enum stmt_type {
 #define SWAPPED 16
 #define ANTI ANTISEL
 #define GRP_DONE 32
+#define MAX_TRANSPOSE_COLUMN_HEADER_AMOUNT 99
+#define CONCAT_INIT_ID -99
 
 typedef struct stmt {
 	st_type type;
@@ -185,6 +187,8 @@ extern stmt *stmt_atom_int(backend *be, int i);
 extern stmt *stmt_atom_lng(backend *be, lng i);
 extern stmt *stmt_atom_lng_nil(backend *be);
 extern stmt *stmt_bool(backend *be, int b);
+extern stmt *stmt_take(backend *be, stmt *op1, const char *cname);
+extern stmt *stmt_result2(backend *be, stmt *s, int nr);
 
 extern stmt *stmt_uselect(backend *be, stmt *op1, stmt *op2, comp_type cmptype, stmt *sub, int anti, int is_semantics);
 /* cmp
@@ -269,6 +273,6 @@ extern const char *schema_name(sql_allocator *sa, stmt *st);
 extern stmt *const_column(backend *ba, stmt *val);
 extern stmt *stmt_fetch(backend *ba, stmt *val);
 
-extern stmt *stmt_matrix_transpose(backend *be, list *order_alignment_stmt, list *application_alignment_stmt);
+extern stmt *stmt_matrix_transpose(backend *be, list *order_alignment_stmt, list *application_alignment_stmt, const char *transpose_alias);
 
 #endif /* _SQL_STATEMENT_H_ */

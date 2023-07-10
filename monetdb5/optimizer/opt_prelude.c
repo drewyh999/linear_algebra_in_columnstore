@@ -315,6 +315,7 @@ const char *transaction_abortRef;
 const char *transaction_beginRef;
 const char *transaction_commitRef;
 const char *transactionRef;
+const char *transposeRef;
 const char *transaction_releaseRef;
 const char *transaction_rollbackRef;
 const char *umaskRef;
@@ -518,6 +519,7 @@ void optimizerInit(void)
 	modRef = putName("%");
 	mtimeRef = putName("mtime");
 	mulRef = putName("*");
+    transposeRef = putName("transpose");
 	multicolumnRef = putName("multicolumn");
 	multiplexRef = putName("multiplex");
 	mvcRef = putName("mvc");

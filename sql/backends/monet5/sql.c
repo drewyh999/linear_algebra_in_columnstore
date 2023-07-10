@@ -2609,6 +2609,7 @@ mvc_export_table_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 str
 mvc_row_result_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 {
+    // TODO potential modification needed for transposed columns
 	int *res_id= getArgReference_int(stk, pci,0);
 	bat tblId= *getArgReference_bat(stk, pci,1);
 	bat atrId= *getArgReference_bat(stk, pci,2);

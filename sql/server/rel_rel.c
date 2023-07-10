@@ -17,7 +17,8 @@
 #include "rel_rewriter.h"
 
 sql_rel *
-rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order_schema_exps, list *application_schema_exps)
+rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order_schema_exps,
+                     list *application_schema_exps, char *transpose_alias)
 {
     sql_rel *rel = rel_create(sa);
     if(!rel)
@@ -29,6 +30,7 @@ rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order
     rel->exps = application_schema_exps;
     rel->card = CARD_MULTI;
     rel->nrcols = table_ref_relation -> nrcols;
+    rel->transpose_alias = transpose_alias;
     return rel;
 }
 
