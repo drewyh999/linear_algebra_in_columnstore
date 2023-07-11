@@ -109,7 +109,7 @@ typedef enum stmt_type {
 #define ANTI ANTISEL
 #define GRP_DONE 32
 #define MAX_TRANSPOSE_COLUMN_HEADER_AMOUNT 99
-#define CONCAT_INIT_ID -99
+#define CONCAT_INIT_ID (-99)
 
 typedef struct stmt {
 	st_type type;
@@ -117,6 +117,7 @@ typedef struct stmt {
 	struct stmt *op2;
 	struct stmt *op3;
 	stmtdata op4;		/* only op4 will hold other types */
+    struct stmt *transpose_header; /* store the instruction that points to transpose headers */
 
 	unsigned int
 	 nrcols:2,

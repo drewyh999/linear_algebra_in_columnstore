@@ -2238,6 +2238,12 @@ stmt_project(backend *be, stmt *op1, stmt *op2)
 		s->q = q;
 		s->tname = op2->tname;
 		s->cname = op2->cname;
+        // If projecting on a transposed dollar, we need to also let the header float up with the stmt
+        if(op1 -> cname && strcmp(op1 -> cname, "$") == 0) {
+            s -> transpose_header = op1 -> transpose_header;
+        } else if(op2 -> cname && strcmp(op2 -> cname, "$") == 0) {
+            s -> transpose_header = op2 -> transpose_header;
+        }
 		return s;
 	}
 	return NULL;
@@ -2909,7 +2915,7 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 
         // If the current stmt is a transposed column, we fetch it's header from the
         if(currentTransposeDollar){
-            transposed_header_stmt = c -> op4.stval;
+            transposed_header_stmt = c -> transpose_header;
         }
 		size_t fqtnl;
 		char *fqtn = NULL;
@@ -2932,7 +2938,7 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
                         }
                         // First header is a concrete column header
                         else{
-                            meta(nmePtr, nmeId, TYPE_str, args);
+                            meta_without_pushing(nmePtr, nmeId, TYPE_str, args);
                             metaInfo(nmePtr, Str, cn);
                         }
                     }
@@ -2943,15 +2949,15 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
                             // Determine if we need to merge result of bat.append and bat.pack
                             if(concatPtr && concatId != nmeId){
                                 InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 2);
-                                pushArgument(mb, i, concatId);
-                                pushArgument(mb, i, nmeId);
+                                i = pushArgument(mb, i, concatId);
+                                i = pushArgument(mb, i, nmeId);
                                 concatId = getArg(i, 0);
                                 nmeId = concatId;
                             }
                             // Concatenate column header
                             InstrPtr temp = newStmtArgs(mb, batRef, appendRef, 2);
-                            pushArgument(mb, temp, concatId);
-                            pushArgument(mb, temp, transposed_header_stmt -> nr);
+                            temp = pushArgument(mb, temp, concatId);
+                            temp = pushArgument(mb, temp, transposed_header_stmt -> nr);
                             concatPtr = temp;
                             concatId = getArg(temp, 0);
                             nmeId = concatId;
@@ -2961,7 +2967,7 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
                         else{
                             // Previous concatPtr is a bat.append, we should create a new bat.pack
                             if(concatId != CONCAT_INIT_ID && concatId == nmeId){
-                                meta(nmePtr, nmeId, TYPE_str, args);
+                                meta_without_pushing(nmePtr, nmeId, TYPE_str, args);
                                 metaInfo(nmePtr, Str, cn);
                             }
                             //Otherwise just directly append the column name to bat.pack
@@ -2990,15 +2996,15 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 	sa_reset(sql->ta);
     if(hasTransposedHeader){
         // Determine if we need final merging of bat.pack and bat.append
-        if(concatPtr && concatId != nmeId){
+        if(concatId != CONCAT_INIT_ID && concatId != nmeId){
             InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 2);
-            pushArgument(mb, i, concatId);
-            pushArgument(mb, i, nmeId);
+            i = pushArgument(mb, i, concatId);
+            i = pushArgument(mb, i, nmeId);
             concatId = getArg(i, 0);
             nmeId = concatId;
         }
         // Determine if the transposed column header is all the header we have
-        else if(!concatPtr && concatId != CONCAT_INIT_ID){
+        else if(concatId != CONCAT_INIT_ID){
             nmeId = concatId;
         }
         else{
@@ -3015,7 +3021,7 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
     }
 	pushInstruction(mb,list);
 
-    printFunction(stdout_wastream(), mb, 0, 23);
+//    printFunction(stdout_wastream(), mb, 0, 23);
 	return list;
 }
 
