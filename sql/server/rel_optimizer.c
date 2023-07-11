@@ -126,6 +126,7 @@ name_find_column( sql_rel *rel, const char *rname, const char *name, int pnr, sq
 		return c;
 	case op_select:
 	case op_topn:
+    case op_matrix_transpose:
 	case op_sample:
 		return name_find_column( rel->l, rname, name, pnr, bt);
 	case op_union:
@@ -1132,6 +1133,7 @@ rel_join_order(visitor *v, sql_rel *rel)
 		rel->r = rel_join_order(v, rel->r);
 		break;
 	case op_project:
+    case op_matrix_transpose:
 	case op_select:
 	case op_groupby:
 	case op_topn:
@@ -2337,6 +2339,7 @@ has_no_selectivity(mvc *sql, sql_rel *rel)
 	case op_topn:
 	case op_sample:
 	case op_project:
+    case op_matrix_transpose:
 	case op_groupby:
 		return has_no_selectivity(sql, rel->l);
 	case op_ddl:
@@ -6881,6 +6884,7 @@ rel_mark_used(mvc *sql, sql_rel *rel, int proj)
 	switch(rel->op) {
 	case op_basetable:
 	case op_truncate:
+    case op_matrix_transpose:
 	case op_insert:
 		break;
 
@@ -7093,6 +7097,7 @@ rel_remove_unused(mvc *sql, sql_rel *rel)
 	case op_full:
 	case op_semi:
 	case op_anti:
+    case op_matrix_transpose:
 		return rel;
 	case op_ddl:
 		if (rel->flag == ddl_output || rel->flag == ddl_create_seq || rel->flag == ddl_alter_seq || rel->flag == ddl_alter_table || rel->flag == ddl_create_table || rel->flag == ddl_create_view) {
@@ -7119,6 +7124,7 @@ rel_dce_refs(mvc *sql, sql_rel *rel, list *refs)
 	case op_table:
 	case op_topn:
 	case op_sample:
+    case op_matrix_transpose:
 	case op_project:
 	case op_groupby:
 	case op_select:
@@ -7210,6 +7216,7 @@ rel_dce_down(mvc *sql, sql_rel *rel, int skip_proj)
 
 	case op_topn:
 	case op_sample:
+    case op_matrix_transpose:
 	case op_project:
 	case op_groupby:
 
@@ -7329,6 +7336,7 @@ rel_add_projects(mvc *sql, sql_rel *rel)
 	case op_topn:
 	case op_sample:
 	case op_project:
+    case op_matrix_transpose:
 	case op_groupby:
 	case op_select:
 	case op_table:

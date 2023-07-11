@@ -295,6 +295,7 @@ CMDbatBINARY2(MalBlkPtr mb, MalStkPtr stk, InstrPtr pci,
 	BAT *bn, *b1 = NULL, *b2 = NULL, *s1 = NULL, *s2 = NULL;
 	int tp1, tp2, tp3;
 
+
 	tp1 = stk->stk[getArg(pci, 1)].vtype; /* first argument */
 	tp2 = stk->stk[getArg(pci, 2)].vtype; /* second argument */
 	tp3 = getArgType(mb, pci, 0);		  /* return argument */
@@ -621,6 +622,15 @@ CMDbatADD(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 
 	return CMDbatBINARY2(mb, stk, pci, BATcalcadd, BATcalcaddcst, BATcalccstadd,
 						 calctype, 0, "batcalc.add_noerror");
+}
+
+static str
+CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
+    (void) cntxt;
+    (void)mb -> var;
+    (void)stk -> blk;
+    (void)pci -> argv;
+    return MAL_SUCCEED;
 }
 
 static str
@@ -2169,6 +2179,10 @@ static mel_func batcalc_init_funcs[] = {
  pattern("batcalc", "+", CMDbatADD, false, "Return concatenation of B1 and B2 with candidates list", args(1,5, batarg("",str),batarg("b1",str),batarg("b2",str),batarg("s1",oid),batarg("s2",oid))),
  pattern("batcalc", "+", CMDbatADD, false, "Return concatenation of B and V with candidates list", args(1,4, batarg("",str),batarg("b",str),arg("v",str),batarg("s",oid))),
  pattern("batcalc", "+", CMDbatADD, false, "Return concatenation of V and B with candidates list", args(1,4, batarg("",str),arg("v",str),batarg("b",str),batarg("s",oid))),
+ pattern("batcalc", "transpose", CMDbatTRANSPOSE,false, "Return a BAT containing the ids of the BATs after transposition and a BAT containing the headers of the columns after transposition,First argument should be the ordering schema column", args(2,3,
+                                                                                                                                                                                                                                                        batarg("", bat),
+                                                                                                                                                                                                                                                        batarg("", str) ,batvarargany("bat_in", 0))),
+
 
  pattern("batmmath", "fmod", CMDbatMODsignal, false, "", args(1,3, batarg("",dbl),batarg("x",dbl),arg("y",dbl))),
  pattern("batmmath", "fmod", CMDbatMODsignal, false, "", args(1,4, batarg("",dbl),batarg("x",dbl),arg("y",dbl),batarg("s",oid))),

@@ -173,8 +173,12 @@ list_find_column(backend *be, list *l, const char *rname, const char *name )
 				const char *rnme = table_name(be->mvc->sa, s);
 				const char *nme = column_name(be->mvc->sa, s);
 
-				if (rnme && strcmp(rnme, rname) == 0 &&
-		 	            strcmp(nme, name) == 0) {
+                // If the column is a column after transposition, we should let it be found
+                // And if the column is a header information of transposition, we should also let it be found
+				if ((rnme && strcmp(rnme, rname) == 0 &&
+		 	            strcmp(nme, name) == 0 ) ||
+                        (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$") == 0) ||
+                        (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$H$") == 0)) {
 					res = s;
 					break;
 				}
@@ -200,8 +204,10 @@ list_find_column(backend *be, list *l, const char *rname, const char *name )
 			const char *rnme = table_name(be->mvc->sa, n->data);
 			const char *nme = column_name(be->mvc->sa, n->data);
 
-			if (rnme && strcmp(rnme, rname) == 0 &&
-				    strcmp(nme, name) == 0) {
+			if ((rnme && strcmp(rnme, rname) == 0 &&
+                 strcmp(nme, name) == 0 ) ||
+                (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$") == 0) ||
+                (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$H$") == 0)) {
 				res = n->data;
 				break;
 			}
@@ -1104,6 +1110,7 @@ exp2bin_coalesce(backend *be, sql_exp *fe, stmt *left, stmt *right, stmt *isel, 
 	return res;
 }
 
+// Convert expression to MAL stmts
 stmt *
 exp_bin(backend *be, sql_exp *e, stmt *left, stmt *right, stmt *grp, stmt *ext, stmt *cnt, stmt *sel, int depth, int reduce, int push)
 {
@@ -1367,10 +1374,14 @@ exp_bin(backend *be, sql_exp *e, stmt *left, stmt *right, stmt *grp, stmt *ext, 
 			s->flag |= OUTER_ZERO;
 	} 	break;
 	case e_column: {
+        // Fetch out the stmt containing the column instrptr from the stmt left or right
 		if (right) /* check relation names */
 			s = bin_find_column(be, right, e->l, e->r);
 		if (!s && left)
 			s = bin_find_column(be, left, e->l, e->r);
+        if(s && s -> cname && strcmp(s -> cname, "$") == 0 && strcmp(e -> alias.name, "$") != 0){
+            s = stmt_take(be, s, e -> alias.name);
+        }
 		if (s && grp)
 			s = stmt_project(be, ext, s);
 		if (!s && right) {
@@ -1842,6 +1853,7 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 				continue;
 			s = (i == fi) ? col : stmt_idx(be, i, NULL/*dels*/, dels->partition);
 		} else {
+            // find the column in the table t
 			sql_column *c = find_sql_column(t, oname);
 
 			s = (c == fcol) ? col : stmt_col(be, c, NULL/*dels*/, dels->partition);
@@ -1851,6 +1863,7 @@ rel2bin_basetable(backend *be, sql_rel *rel)
 		list_append(l, s);
 	}
 	stmt *res = stmt_list(be, l);
+
 	if (res && dels)
 		res->cand = dels;
 	return res;
@@ -1986,6 +1999,7 @@ rel2bin_args(backend *be, sql_rel *rel, list *args)
 		args = rel2bin_args(be, rel->l, args);
 		break;
 	case op_ddl:
+    case op_matrix_transpose:
 		args = rel2bin_args(be, rel->l, args);
 		if (rel->r)
 			args = rel2bin_args(be, rel->r, args);
@@ -2485,6 +2499,8 @@ get_equi_joins_first(mvc *sql, list *exps, int *equality_only)
 static stmt *
 rel2bin_join(backend *be, sql_rel *rel, list *refs)
 {
+//    printf("rel2bin_join rel:\n");
+//    _rel_print(be->mvc, rel);
 	mvc *sql = be->mvc;
 	list *l, *sexps = NULL, *l2 = NULL;
 	node *en = NULL, *n;
@@ -3144,6 +3160,7 @@ rel2bin_union(backend *be, sql_rel *rel, list *refs)
 		const char *nme = column_name(sql->sa, c1);
 		stmt *s;
 
+        // Appending the projection c1 on c2
 		s = stmt_append(be, create_const_column(be, c1), c2);
 		s = stmt_alias(be, s, rnme, nme);
 		list_append(l, s);
@@ -3439,6 +3456,7 @@ rel2bin_project(backend *be, sql_rel *rel, list *refs, sql_rel *topn)
 		}
 	}
 
+
 	if (!rel->exps)
 		return stmt_none(be);
 
@@ -3451,6 +3469,7 @@ rel2bin_project(backend *be, sql_rel *rel, list *refs, sql_rel *topn)
 				sub = rel2bin_sql_table(be, t, rel->exps);
 		} else {
 			sub = subrel_bin(be, rel->l, refs);
+
 		}
 		sub = subrel_project(be, sub, refs, rel->l);
 		if (!sub)
@@ -3464,8 +3483,13 @@ rel2bin_project(backend *be, sql_rel *rel, list *refs, sql_rel *topn)
 	for( en = rel->exps->h; en; en = en->next ) {
 		sql_exp *exp = en->data;
 		int oldvtop = be->mb->vtop, oldstop = be->mb->stop, oldvid = be->mb->vid;
+
 		stmt *s = exp_bin(be, exp, sub, NULL /*psub*/, NULL, NULL, NULL, NULL, 0, 0, 0);
 
+        // If the found column is a concrete reference to a transposed column list, we fetch it out
+        // e.g. the exp is r.a while the statement found is r.$
+
+        // s is the stmt struct
 		if (!s) { /* try with own projection as well, but first clean leftover statements */
 			clean_mal_statements(be, oldstop, oldvtop, oldvid);
 			s = exp_bin(be, exp, sub, psub, NULL, NULL, NULL, NULL, 0, 0, 0);
@@ -5410,6 +5434,16 @@ sql_delete_triggers(backend *be, sql_table *t, stmt *tids, stmt **deleted_cols, 
 
 static stmt * sql_delete(backend *be, sql_table *t, stmt *rows);
 
+static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list *refs);
+
+static stmt *order_schema_bin(backend *be, stmt *subrel_stmts, list *order_schema_exps);
+
+//static stmt *find_column_ref_exp_from_stmt(backend *be, stmt *subrel_stmt, list *exps);
+
+static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_stmt, list *column_list);
+
+static list * rel2bin_column_refs(backend *be, stmt *subrel_stmts, list *column_ref_exp_list);
+
 static stmt *
 sql_delete_cascade_Fkeys(backend *be, sql_key *fk, stmt *ftids)
 {
@@ -6374,6 +6408,10 @@ subrel_bin(backend *be, sql_rel *rel, list *refs)
 		if (sql->type == Q_TABLE)
 			sql->type = Q_UPDATE;
 		break;
+    case op_matrix_transpose:
+        s = rel2bin_matrix_transpose(be, rel, refs);
+        sql->type = Q_TABLE;
+        break;
 	case op_truncate:
 		s = rel2bin_truncate(be, rel);
 		if (sql->type == Q_TABLE)
@@ -6393,6 +6431,105 @@ subrel_bin(backend *be, sql_rel *rel, list *refs)
 		list_append(refs, s);
 	}
 	return s;
+}
+
+static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list *refs) {
+    stmt *subrel_stmts = subrel_bin(be, relation_tree -> l, refs);
+    subrel_stmts = subrel_project(be, subrel_stmts, NULL, relation_tree);
+    assert(subrel_stmts);
+    stmt *result = NULL;
+    list *order_schema = (list *)relation_tree -> r;
+    list *application_schema = relation_tree -> exps;
+
+    // Generate order schema index after sorting
+    stmt *sorted_order_schema_stmt = order_schema_bin(be, subrel_stmts, order_schema);
+
+    // Find application and order schema projection in subrel stmts for transpose so that the MAL knows which column to transpose
+    list *application_schema_stmts = rel2bin_column_refs(be, subrel_stmts, application_schema);
+    list *order_schema_stmts = rel2bin_column_refs(be, subrel_stmts, order_schema);
+
+    // Use the sorted order schema id to project on the table data, which aligns all columns according to the order of order schema
+    list *order_part_alignment_stmts = alignment_projection_bin(be, sorted_order_schema_stmt, order_schema_stmts);
+    list *application_part_alignment_stmts = alignment_projection_bin(be, sorted_order_schema_stmt, application_schema_stmts);
+
+
+    stmt *transpose_stmt = stmt_matrix_transpose(be, order_part_alignment_stmts,
+                                                 application_part_alignment_stmts, relation_tree -> transpose_alias);
+
+    list *result_list = sa_list(be -> mvc -> sa);
+    stmt *transposed_columns_stmt = stmt_result2(be, transpose_stmt, 0);
+    stmt *transposed_header_stmt = stmt_result2(be, transpose_stmt, 1);
+    // Alias the transpose header as $H$ for packing function to identify and correctly pack results
+    transposed_header_stmt = stmt_alias(be, transposed_header_stmt, relation_tree -> transpose_alias, "$H$");
+    transposed_columns_stmt -> transpose_header = transposed_header_stmt;
+
+    list_append(result_list, transposed_columns_stmt);
+
+    result = stmt_list(be, result_list);
+
+    return result;
+}
+
+static list * rel2bin_column_refs(backend *be, stmt *subrel_stmts, list *column_ref_exp_list) {
+    mvc *sql = be -> mvc;
+
+    list *result = sa_list(sql -> sa);
+
+    for(node *n = column_ref_exp_list -> h; n; n = n -> next){
+        sql_exp *application_schema_column_ref = n -> data;
+
+        stmt *application_schema_column_stmt = exp_bin(be, application_schema_column_ref
+                                                       ,subrel_stmts, NULL,
+                                                       NULL, NULL, NULL, NULL,
+                                                       0,0,0);
+        list_append(result, application_schema_column_stmt);
+    }
+
+    return result;
+}
+
+static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_stmt, list *column_list) {
+    mvc *sql = be -> mvc;
+
+    list *result = sa_list(sql -> sa);
+
+    // Project
+    for(node *n = column_list -> h; n; n = n -> next){
+        stmt *column_stmt = n -> data;
+        stmt *aligned_column_stmt = stmt_project(be, sorted_order_schema_stmt, column_stmt);
+        list_append(result, aligned_column_stmt);
+    }
+
+    return result;
+}
+
+//static stmt *find_column_ref_exp_from_stmt(backend *be, stmt *subrel_stmt, list *exps)
+//{
+//    return NULL;
+//}
+
+static stmt *order_schema_bin(backend *be, stmt *subrel_stmts, list *order_schema_exps) {
+    mvc *sql = be -> mvc;
+    // orderby id stmt used for traverse, if it is NULL we know it is the first one
+    stmt *orderby_ids = NULL;
+    stmt *orderby = NULL;
+
+    // The following codes are adapted from rel2bin_project orderby part
+    // Traverse the list of ordering schemas and compose the stmts related to ordering
+    for(node *n = order_schema_exps -> h; n; n = n -> next){
+        sql_exp *order_schema_column_ref = n -> data;
+
+        // Imitating the orderby stmts composing in rel2bin_project
+        stmt *order_schema_stmt = exp_bin(be, order_schema_column_ref, subrel_stmts, NULL, NULL, NULL, NULL, NULL, 0, 0, 0);
+
+        if(!order_schema_stmt)
+            return sql_error(sql, 10, SQLSTATE(42000) "No valid order schema found\n");
+        // For order direction, we set it to 0, since it does not make sense to let user decide the order schema direction
+        // in our case
+        orderby = stmt_order(be, order_schema_stmt, 0, 0);
+        orderby_ids = stmt_result(be, orderby, 1);
+    }
+    return orderby_ids;
 }
 
 stmt *
@@ -6424,6 +6561,7 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 
 	s = subrel_bin(be, rel, refs);
 	s = subrel_project(be, s, refs, rel);
+
 	if (!s)
 		return NULL;
 	if (sqltype == Q_SCHEMA)

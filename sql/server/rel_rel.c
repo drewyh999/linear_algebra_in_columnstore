@@ -16,6 +16,24 @@
 #include "sql_mvc.h"
 #include "rel_rewriter.h"
 
+sql_rel *
+rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relation, list *order_schema_exps,
+                     list *application_schema_exps, char *transpose_alias)
+{
+    sql_rel *rel = rel_create(sa);
+    if(!rel)
+        return NULL;
+
+    rel->l = table_ref_relation;
+    rel->r = order_schema_exps;
+    rel->op = op_matrix_transpose;
+    rel->exps = application_schema_exps;
+    rel->card = CARD_MULTI;
+    rel->nrcols = table_ref_relation -> nrcols;
+    rel->transpose_alias = transpose_alias;
+    return rel;
+}
+
 void
 rel_set_exps(sql_rel *rel, list *exps)
 {
@@ -117,6 +135,7 @@ rel_destroy_(sql_rel *rel)
 	case op_project:
 	case op_groupby:
 	case op_select:
+    case op_matrix_transpose:
 	case op_topn:
 	case op_sample:
 	case op_truncate:
@@ -185,6 +204,7 @@ rel_copy(mvc *sql, sql_rel *i, int deep)
 		break;
 	case op_project:
 	case op_groupby:
+    case op_matrix_transpose:
 		if (i->l)
 			rel->l = rel_copy(sql, i->l, deep);
 		if (i->r) {
@@ -343,7 +363,8 @@ rel_bind_column( mvc *sql, sql_rel *rel, const char *cname, int f, int no_tname)
 	} else if (is_semi(rel->op) ||
 		   is_select(rel->op) ||
 		   is_topn(rel->op) ||
-		   is_sample(rel->op)) {
+		   is_sample(rel->op) ||
+           is_matrix_transpose(rel->op)) {
 		if (rel->l)
 			return rel_bind_column(sql, rel->l, cname, f, no_tname);
 	}
@@ -1047,6 +1068,7 @@ _rel_projections(mvc *sql, sql_rel *rel, const char *tname, int settname, int in
 	case op_select:
 	case op_topn:
 	case op_sample:
+    case op_matrix_transpose:
 		return _rel_projections(sql, rel->l, tname, settname, intern, basecol);
 	default:
 		return NULL;
@@ -1058,6 +1080,54 @@ rel_projections(mvc *sql, sql_rel *rel, const char *tname, int settname, int int
 {
 	assert(tname == NULL);
 	return _rel_projections(sql, rel, tname, settname, intern, 0);
+}
+
+bool rel_has_transpose(sql_rel *relation_tree)
+{
+    bool left;
+    bool right;
+    if(relation_tree == NULL)
+        return false;
+    if(!relation_tree -> op){
+        return false;
+    }
+    switch (relation_tree -> op) {
+        case op_join:
+        case op_left:
+        case op_right:
+        case op_full:
+        case op_semi:
+        case op_anti:
+        case op_select:
+        case op_topn:
+        case op_sample:
+        case op_union:
+        case op_inter:
+        case op_except:
+        case op_groupby:
+        case op_project:
+            left = false;
+            right = false;
+            if(relation_tree -> l)
+                left = rel_has_transpose(relation_tree -> l);
+            if(relation_tree -> r)
+                right = rel_has_transpose(relation_tree -> r);
+            return  left || right;
+        case op_insert:
+        case op_update:
+        case op_delete:
+        case op_truncate:
+        case op_merge:
+        case op_ddl:
+        case op_basetable:
+        case op_table:
+            break;
+        case op_matrix_transpose:
+            return true;
+        default:
+            return false;
+    }
+    return false;
 }
 
 /* find the path to the relation containing the base of the expression
@@ -1087,6 +1157,7 @@ rel_bind_path_(mvc *sql, sql_rel *rel, sql_exp *e, list *path )
 	case op_semi:
 	case op_anti:
 	case op_select:
+    case op_matrix_transpose:
 	case op_topn:
 	case op_sample:
 		found = rel_bind_path_(sql, rel->l, e, path);
@@ -1810,6 +1881,7 @@ rel_deps(mvc *sql, sql_rel *r, list *refs, list *l)
 		break;
 	case op_project:
 	case op_select:
+    case op_matrix_transpose:
 	case op_groupby:
 	case op_topn:
 	case op_sample:
@@ -2033,6 +2105,7 @@ rel_exp_visitor(visitor *v, sql_rel *rel, exp_rewrite_fptr exp_rewriter, bool to
 		break;
 	case op_select:
 	case op_topn:
+    case op_matrix_transpose:
 	case op_sample:
 	case op_project:
 	case op_groupby:
@@ -2235,6 +2308,7 @@ rel_visitor(visitor *v, sql_rel *rel, rel_rewrite_fptr rel_rewriter, bool topdow
 	case op_select:
 	case op_topn:
 	case op_sample:
+    case op_matrix_transpose:
 	case op_project:
 	case op_groupby:
 	case op_truncate:

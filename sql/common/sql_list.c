@@ -10,6 +10,8 @@
 #include "gdk.h"		/* for GDKmalloc() & GDKfree() */
 #include "sql_list.h"
 
+
+
 static node *
 node_create(sql_allocator *sa, void *data)
 {
@@ -167,6 +169,15 @@ list_append_node(list *l, node *n)
 	return l;
 }
 
+// Concatenate two list
+list *
+list_concat(list *l, list *r){
+    for(node *n = r -> h; n; n = n -> next){
+        list_append_node(l, n);
+    }
+    return l;
+}
+
 list *
 list_append(list *l, void *data)
 {
@@ -318,6 +329,30 @@ list_prepend(list *l, void *data)
 	}
 	MT_lock_unset(&l->ht_lock);
 	return l;
+}
+
+// for list left and right, return left - right
+// eg, left = [1,2,3] right = [2,3] then the result should be [1]
+list *
+list_subtraction(list *left, list *right, fcmp compare_function){
+    if(right == NULL)
+        return left;
+
+    node *left_node;
+
+    // Remove every element in the right from the left
+    for(node *right_node = right -> h; right_node; right_node = right_node -> next)
+    {
+        // Find the node in the left list that has the same value as the right_node
+        // If found, delete this node in the left list
+        left_node = list_find(left, right_node -> data, compare_function);
+        if(left_node)
+        {
+            (void) list_remove_node(left, NULL, left_node);
+        }
+    }
+
+    return left;
 }
 
 static void

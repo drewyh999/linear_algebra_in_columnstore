@@ -369,6 +369,8 @@ op2string(operator_type op)
 		return "table";
 	case op_ddl:
 		return "ddl";
+    case op_matrix_transpose:
+        return "matrix transpose";
 	case op_project:
 		return "project";
 	case op_select:
@@ -556,6 +558,7 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 	case op_groupby:
 	case op_topn:
 	case op_sample:
+    case op_matrix_transpose:
 		r = "project";
 		if (rel->op == op_select)
 			r = "select";
@@ -565,6 +568,8 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 			r = "top N";
 		if (rel->op == op_sample)
 			r = "sample";
+        if (rel -> op == op_matrix_transpose)
+            r = "matrix transpose";
 
 		if (rel->l) {
 			if (need_distinct(rel))
@@ -581,7 +586,18 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 		}
 		if (rel->op == op_groupby)  /* group by columns */
 			exps_print(sql, fout, rel->r, depth, refs, 1, 0);
-		exps_print(sql, fout, rel->exps, depth, refs, 1, 0);
+        if (rel -> op == op_matrix_transpose)
+        {
+            mnstr_printf(fout, " order schema: ");
+            assert(rel -> r);
+            exps_print(sql, fout, rel -> r, depth, refs, 1, 0);
+            mnstr_printf(fout, " application schema: ");
+            exps_print(sql, fout, rel -> exps, depth, refs, 1, 0);
+        }
+        else
+        {
+            exps_print(sql, fout, rel->exps, depth, refs, 1, 0);
+        }
 		if (rel->r && rel->op == op_project) /* order by columns */
 			exps_print(sql, fout, rel->r, depth, refs, 1, 0);
 		break;
@@ -696,6 +712,7 @@ rel_print_refs(mvc *sql, stream* fout, sql_rel *rel, int depth, list *refs, int 
 	case op_project:
 	case op_select:
 	case op_groupby:
+    case op_matrix_transpose:
 	case op_topn:
 	case op_sample:
 		if (rel->l)

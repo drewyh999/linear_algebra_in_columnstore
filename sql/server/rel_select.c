@@ -23,9 +23,25 @@
 #include "rel_schema.h"
 #include "rel_unnest.h"
 #include "rel_sequence.h"
+#include "../backends/monet5/sql_gencode.h"
 
+#define SQL_REL_DEBUG
 #define VALUE_FUNC(f) (f->func->type == F_FUNC || f->func->type == F_FILT)
 #define check_card(card,f) ((card == card_none && !f->res) || (CARD_VALUE(card) && f->res && VALUE_FUNC(f)) || card == card_loader || (card == card_relation && f->func->type == F_UNION))
+
+static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
+
+static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
+
+static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
+
+static symbdata get_element_by_index(dlist *list_in, int index){
+    dnode *res = list_in -> h;
+    for(int i = 0;i < index;i ++){
+        res = res -> next;
+    }
+    return res -> data;
+}
 
 static void
 query_processed(sql_query *query )
@@ -61,8 +77,8 @@ rel_table_projections( mvc *sql, sql_rel *rel, char *tname, int level )
 	case op_semi:
 	case op_anti:
 	case op_select:
+    case op_matrix_transpose:
 		return rel_table_projections( sql, rel->l, tname, level+1);
-
 	case op_topn:
 	case op_sample:
 	case op_groupby:
@@ -312,34 +328,43 @@ query_exp_optname(sql_query *query, sql_rel *r, symbol *q, list *refs)
 	mvc *sql = query->sql;
 	switch (q->token) {
 	case SQL_WITH:
-	{
-		sql_rel *tq = rel_with_query(query, q);
+        {
+            sql_rel *tq = rel_with_query(query, q);
 
-		if (!tq)
-			return NULL;
-		if (q->data.lval->t->type == type_symbol)
-			return rel_table_optname(sql, tq, q->data.lval->t->data.sym, refs);
-		return tq;
-	}
-	case SQL_JOIN:
-	{
-		sql_rel *tq = rel_joinquery(query, r, q, refs);
+            if (!tq)
+                return NULL;
+            if (q->data.lval->t->type == type_symbol)
+                return rel_table_optname(sql, tq, q->data.lval->t->data.sym, refs);
+            return tq;
+        }
+        case SQL_JOIN:
+        {
+            sql_rel *tq = rel_joinquery(query, r, q, refs);
 
-		if (!tq)
-			return NULL;
-		return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
-	}
-	case SQL_CROSS:
-	{
-		sql_rel *tq = rel_crossquery(query, r, q, refs);
+            if (!tq)
+                return NULL;
+            return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
+        }
+        case SQL_CROSS:
+        {
+            sql_rel *tq = rel_crossquery(query, r, q, refs);
 
-		if (!tq)
-			return NULL;
-		return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
+            if (!tq)
+                return NULL;
+            return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
+        }
+
+        case SQL_TRANSPOSE:
+        {
+            sql_rel *tq =  rel_matrix_transpose_query(query, r, q);
+            if (!tq)
+                return NULL;
+            return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
+        }
+        default:
+            (void) sql_error(sql, 02, SQLSTATE(42000) "case %d %s", (int) q->token, token2string(q->token));
 	}
-	default:
-		(void) sql_error(sql, 02, SQLSTATE(42000) "case %d %s", (int) q->token, token2string(q->token));
-	}
+
 	return NULL;
 }
 
@@ -1043,6 +1068,11 @@ table_ref(sql_query *query, sql_rel *rel, symbol *tableref, int lateral, list *r
 				return sql_error(sql, 02, SQLSTATE(42000) "SELECT: relation name \"%s\" specified more than once", tname);
 			list_append(refs, tname);
 		}
+
+//        if(res -> l) {
+//            if (strcmp(((sql_table *) res->l)->base.name, "people") == 0)
+//                printf("At table_ref, the exp length is %d\n", list_length(rel->exps));
+//        }
 		return res;
 	} else if (tableref->token == SQL_VALUES) {
 		return rel_values(query, tableref, refs);
@@ -1425,6 +1455,30 @@ rel_convert_types(mvc *sql, sql_rel *ll, sql_rel *rr, sql_exp **L, sql_exp **R, 
 	sql_exp *rs = *R;
 	sql_subtype *lt = exp_subtype(ls);
 	sql_subtype *rt = exp_subtype(rs);
+
+    // If either side of equation contains columns after transposition like r.$ = s.$
+    // We skip type check
+    if(ls -> alias.name && rs -> alias.name){
+        if(strcmp(ls -> alias.name, TRANSPOSED_COLUMNS) == 0 || strcmp(rs -> alias.name, TRANSPOSED_COLUMNS) == 0){
+            return 0;
+        }
+    }
+
+    // If either side of the equation contains reference to a column in a transposed relation like r.a = s.a
+    // and either r or s is a transpose relation, we skip the type check
+    if(ll && rr && ls -> alias.rname && rs -> alias.rname){
+        const char *left_table_name = ls -> alias.rname;
+        const char *right_table_name = rs -> alias.rname;
+
+        // Try to find transposed columns in both sides of the rel
+        sql_exp *left_table_exp = rel_bind_column2(sql, ll, left_table_name, TRANSPOSED_COLUMNS, 0);
+        sql_exp *right_table_exp = rel_bind_column2(sql, rr, right_table_name, TRANSPOSED_COLUMNS,0);
+
+        // Skip the type conversion if either side of the equation is from a transposed column
+        if(left_table_exp || right_table_exp){
+            return 0;
+        }
+    }
 
 	if (!rt && !lt) {
 		sql_error(sql, 01, SQLSTATE(42000) "Cannot have a parameter (?) on both sides of an expression");
@@ -4221,6 +4275,18 @@ rel_group_column(sql_query *query, sql_rel **rel, symbol *grp, dlist *selection,
 			return NULL;
 		}
 	}
+
+    // If the group by column is a transposed column, we skip the type check
+    if(e){
+        const char *table_name = e -> alias.rname;
+        // Try to find transposed columns in the rel
+        sql_exp *table_exp = rel_bind_column2(sql, *rel, table_name, TRANSPOSED_COLUMNS, 0);
+        // Skip the type conversion if the group by column is from a transposed column
+        if(table_exp){
+            return e;
+        }
+    }
+
 	if (!exp_subtype(e))
 		return sql_error(sql, 01, SQLSTATE(42000) "Cannot have a parameter (?) for group by column");
 	return e;
@@ -5429,6 +5495,7 @@ rel_table_exp(sql_query *query, sql_rel **rel, symbol *column_e, bool single_exp
 				*rel = project->l;
 			}
 		}
+        // TODO here the pipline does not support project on nothing with using select *, otherwise it will tell Table expression without table name
 		if ((exps || (exps = rel_table_projections(sql, project, tname, 0)) != NULL) && !list_empty(exps)) {
 			if (!(exps = check_distinct_exp_names(sql, exps)))
 				return sql_error(sql, 02, SQLSTATE(42000) "Duplicate column names in table%s%s%s projection list", tname ? " '" : "", tname ? tname : "", tname ? "'" : "");
@@ -5667,6 +5734,7 @@ join_on_column_name(sql_query *query, sql_rel *rel, sql_rel *t1, sql_rel *t2, in
 		set_not_unique(re);
 		append(outexps, re);
 	}
+//    _rel_print(sql, rel);
 	rel = rel_project(sql->sa, rel, outexps);
 	return rel;
 }
@@ -5691,6 +5759,7 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 
 	inner = rel;
 	pexps = sa_list(sql->sa);
+
 	for (dnode *n = sn->selection->h; n; n = n->next) {
 		/* Here we could get real column expressions
 		 * (including single atoms) but also table results.
@@ -5705,7 +5774,7 @@ rel_select_exp(sql_query *query, sql_rel *rel, SelectNode *sn, exp_kind ek)
 			rel = inner;
 			continue;
 		} else {
-			te = rel_table_exp(query, &rel, n->data.sym, !list_length(pexps) && !n->next);
+            te = rel_table_exp(query, &rel, n->data.sym, !list_length(pexps) && !n->next);
 		}
 		if (!ce && !te) {
 			if (sql->errstr[0])
@@ -5798,6 +5867,8 @@ rel_query(sql_query *query, sql_rel *rel, symbol *sq, int toplevel, exp_kind ek)
 
 			/* just used current expression */
 			fnd = table_ref(query, NULL, n->data.sym, lateral, refs);
+
+
 			if (!fnd && res && lateral && sql->session->status != -ERR_AMBIGUOUS) {
 				/* reset error */
 				sql->session->status = 0;
@@ -5827,6 +5898,7 @@ rel_query(sql_query *query, sql_rel *rel, symbol *sq, int toplevel, exp_kind ek)
 
 	if (res)
 		rel = rel_select_exp(query, res, sn, ek);
+
 	if (!rel && res)
 		rel_destroy(res);
 	return rel;
@@ -6050,9 +6122,13 @@ rel_joinquery_(sql_query *query, sql_rel *rel, symbol *tab1, int natural, jt joi
 	if (inner && is_outerjoin(inner->op))
 		set_processed(inner);
 	set_processed(rel);
+//    printf("rel_select join has rel:\n");
+//    _rel_print(sql, rel);
 	query_processed(query);
 	return rel;
 }
+
+
 
 static sql_rel *
 rel_joinquery(sql_query *query, sql_rel *rel, symbol *q, list *refs)
@@ -6156,6 +6232,15 @@ rel_selects(sql_query *query, symbol *s)
 			ret = rel_select_with_into(query, s);
 		} else {
 			ret = rel_subquery(query, NULL, s, ek);
+//            if(ret && sn -> from){
+//                if((sql_table*)ret->l){
+//            if(strcmp(((sql_table*)rel->l)->base.name,"people") == 0){
+//                printf("after rel_query, now the rel exp length is %d\n", list_length(rel->exps));
+//            }
+//                    printf("table name is %s ", ((sql_table*)ret->l) -> base.name);
+//                    printf("exp length is %d\n", list_length(ret->l));
+//                }
+//            }
 			sql->type = Q_TABLE;
 		}
 	}	break;
@@ -6272,4 +6357,190 @@ rel_loader_function(sql_query *query, symbol* fcall, list *fexps, sql_subfunc **
 		*loader_function = sf;
 
 	return rel_table_func(sql->sa, sq, e, fexps, (sq)?TABLE_FROM_RELATION:TABLE_PROD_FUNC);
+}
+
+// TODO Implement the function that builds the table reference raw input back
+//static char * rel_rebuild_table_ref_input(sql_rel *relation_tree);
+
+//static char * rel_rebuild_table_ref_input(sql_rel *relation_tree){
+//    if(!relation_tree)
+//        return NULL;
+//    switch(relation_tree -> op){
+//        case op_join:
+//        case op_left:
+//        case op_right:
+//        case op_full:
+//            lexps = _rel_projections(sql, rel->l, tname, settname, intern, basecol);
+//            exps_reset_props(lexps, is_right(rel->op) || is_full(rel->op));
+//            rexps = _rel_projections(sql, rel->r, tname, settname, intern, basecol);
+//            exps_reset_props(rexps, is_left(rel->op) || is_full(rel->op));
+//            return list_merge(lexps, rexps, (fdup)NULL);
+//        case op_groupby:
+//            if (list_empty(rel->exps) && rel->r) {
+//                list *r = rel->r;
+//                int label = 0;
+//
+//                if (!settname)
+//                    label = ++sql->label;
+//                exps = new_exp_list(sql->sa);
+//                for (node *en = r->h; en; en = en->next) {
+//                    sql_exp *e = en->data;
+//
+//                    if (basecol && !is_basecol(e))
+//                        continue;
+//                    if (intern || !is_intern(e)) {
+//                        append(exps, e = exp_alias_or_copy(sql, tname, exp_name(e), rel, e));
+//                        if (!settname) /* noname use alias */
+//                            exp_setrelname(sql->sa, e, label);
+//
+//                    }
+//                }
+//                return exps;
+//            }
+//            /* fall through */
+//        case op_project:
+//        case op_basetable:
+//        case op_table:
+//
+//        case op_union:
+//        case op_except:
+//        case op_inter:
+//            if (is_basetable(rel->op) && !rel->exps)
+//                return rel_base_projection(sql, rel, intern);
+//            if (rel->exps) {
+//                int label = 0;
+//
+//                if (!settname)
+//                    label = ++sql->label;
+//                exps = new_exp_list(sql->sa);
+//                for (node *en = rel->exps->h; en; en = en->next) {
+//                    sql_exp *e = en->data;
+//
+//                    if (basecol && !is_basecol(e))
+//                        continue;
+//                    if (intern || !is_intern(e)) {
+//                        append(exps, e = exp_alias_or_copy(sql, tname, exp_name(e), rel, e));
+//                        if (!settname) /* noname use alias */
+//                            exp_setrelname(sql->sa, e, label);
+//
+//                    }
+//                }
+//                return exps;
+//            }
+//            /* I only expect set relations to hit here */
+//            assert(is_set(rel->op));
+//            lexps = _rel_projections(sql, rel->l, tname, settname, intern, basecol);
+//            rexps = _rel_projections(sql, rel->r, tname, settname, intern, basecol);
+//            if (lexps && rexps) {
+//                int label = 0;
+//
+//                if (!settname)
+//                    label = ++sql->label;
+//                assert(list_length(lexps) == list_length(rexps));
+//                for (node *en = lexps->h; en; en = en->next) {
+//                    sql_exp *e = en->data;
+//
+//                    e->card = rel->card;
+//                    if (!settname) /* noname use alias */
+//                        exp_setrelname(sql->sa, e, label);
+//                }
+//            }
+//            return lexps;
+//        case op_ddl:
+//        case op_semi:
+//        case op_anti:
+//
+//        case op_select:
+//        case op_topn:
+//        case op_sample:
+//            // TODO Here the matrix transpose should return a list of place holder exps
+//        case op_matrix_transpose:
+//            return _rel_projections(sql, rel->l, tname, settname, intern, basecol);
+//        default:
+//            return NULL;
+//    }
+//}
+
+static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
+
+static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
+
+static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
+
+
+
+static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps) {
+    if(query == NULL || relation_tree == NULL || ordering_exps == NULL){
+        return NULL;
+    }
+    mvc *sql = query -> sql;
+
+    // Get all column exps in the subtree
+    list *all_column_exps = _rel_projections(sql, relation_tree, NULL, 0, 0, 0);
+
+    return list_subtraction(all_column_exps, ordering_exps, exp_column_cmp);
+}
+
+static list *
+rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list)
+{
+    // Have no idea why tf we need these guys
+    mvc *sql = query -> sql;
+    sql_allocator *sa = query -> sql -> sa;
+    //
+
+    list *result = new_exp_list(sa);
+    for(dnode *list_node = column_symbol_list -> h; list_node != NULL; list_node = list_node -> next)
+    {
+        symbol *column_symbol = list_node -> data.sym;
+        if(column_symbol -> token != SQL_COLUMN)
+        {
+            return sql_error(sql, 02, SQLSTATE(42000) "Order schema part should only be column references\n");
+        }
+        result = list_append(result, rel_column_ref(query, relation_tree, column_symbol, 0));
+    }
+    return result;
+}
+
+
+
+static sql_rel *
+rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol){
+    sql_allocator *sa = query -> sql ->sa;
+
+    // Fetch symbol tree information
+    dlist *data_list = transpose_symbol -> data.lval;
+    symbol *table_ref_symbol = get_element_by_index(data_list, 0).sym;
+    dlist *ordering_schema_symbols = get_element_by_index(data_list, 1).lval;
+    symbol *transpose_alias_symbol = get_element_by_index(data_list, 2).sym;
+    if(!ordering_schema_symbols)
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "No ordering schema specified\n");
+
+    // Resolve possible sub queries in table_ref, if it is simply a table reference, it will also be processed here
+    sql_rel *sub_rel = table_ref(query, relation_tree, table_ref_symbol, 0, NULL);
+
+    // If there are already another transpose in the sub relation, we throw an error
+    if(rel_has_transpose(sub_rel))
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "More than one transpose was nested\n");
+
+    // Get list of expression (in the simplest occasion, the column references) of ordering schema
+    list *ordering_exps = rel_ordering_schema_exps(query, &sub_rel, ordering_schema_symbols);
+
+    // Get list of expression (in the simplest occasion, the column references) of application schema
+    list *application_exps = rel_application_schema_exps(query, sub_rel, ordering_exps);
+
+    // Construct the matrix transpose node in sql_rel tree, l points to the subtree to table references,
+    // r points to the ordering schema expressions, exps contains application schema expressions
+    char *alias_name = transpose_alias_symbol->data.lval->h->data.sval;
+    relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps, alias_name);
+
+    sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, NULL, 3, 1, 0, 0);
+
+    list *projection_list = new_exp_list(sa);
+
+    list_append(projection_list, placeholder_expression);
+
+    relation_tree = rel_project(sa, relation_tree, projection_list);
+
+    return relation_tree;
 }

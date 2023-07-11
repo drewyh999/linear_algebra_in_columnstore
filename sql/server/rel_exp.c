@@ -13,6 +13,23 @@
 #include "rel_rel.h"
 #include "rel_basetable.h"
 #include "rel_prop.h"
+#include "string.h"
+
+// Compares two column expression, returns 0 if two sql_exp points to same column on the same table
+int exp_column_cmp(void *left, void *right)
+{
+    sql_exp *left_column_expression = (sql_exp *)left;
+    sql_exp *right_column_expression = (sql_exp *)right;
+    assert(left_column_expression -> type == e_column && left_column_expression -> type == e_column);
+
+    // If a sql_exp is a column reference it's l pointer points to the table name it belongs to
+    // and r pointer points to the column name
+    if(strcmp((char *)left_column_expression -> l,(char *) right_column_expression -> l) == 0
+            && strcmp((char *)left_column_expression -> r, (char *)right_column_expression -> r) == 0){
+        return 0;
+    }
+    return 1;
+}
 
 comp_type
 compare_str2type(const char *compare_op)
@@ -2458,6 +2475,8 @@ exp_key( sql_exp *e )
 	return 0;
 }
 
+// Returns the expression in the exps list that has the column name of cname, set ambiguous if the reference is ambiguous and
+// set multiple to 1 if there are more than one expression in the exps list that has the cname
 sql_exp *
 exps_bind_column(list *exps, const char *cname, int *ambiguous, int *multiple, int no_tname)
 {
@@ -2535,6 +2554,7 @@ exps_bind_column2(list *exps, const char *rname, const char *cname, int *multipl
 		node *en;
 
 		if (exps) {
+            // TODO Maybe we should also care about hash lookup?
 			if (!exps->ht && list_length(exps) > HASH_MIN_SIZE) {
 				exps->ht = hash_new(exps->sa, list_length(exps), (fkeyvalue)&exp_key);
 				if (exps->ht == NULL)
@@ -2569,6 +2589,15 @@ exps_bind_column2(list *exps, const char *rname, const char *cname, int *multipl
 		}
 		for (en = exps->h; en; en = en->next ) {
 			sql_exp *e = en->data;
+
+            // If the column is a transposed column, we only care if the relation match is valid
+            if (e && e->alias.name && e->alias.rname && strcmp(e->alias.name, TRANSPOSED_COLUMNS) == 0 && strcmp(e->alias.rname, rname) == 0) {
+                if (res && multiple)
+                    *multiple = 1;
+                if (!res)
+                    res = e;
+                continue;
+            }
 
 			if (e && e->alias.name && e->alias.rname && strcmp(e->alias.name, cname) == 0 && strcmp(e->alias.rname, rname) == 0) {
 				if (res && multiple)

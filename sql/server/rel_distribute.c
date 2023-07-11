@@ -49,6 +49,7 @@ has_remote_or_replica( sql_rel *rel )
 	case op_project:
 	case op_select:
 	case op_groupby:
+    case op_matrix_transpose:
 	case op_topn:
 	case op_sample:
 	case op_truncate:
@@ -291,6 +292,7 @@ rel_rewrite_remote(visitor *v, sql_rel *rel)
 		break;
 	case op_project:
 	case op_select:
+    case op_matrix_transpose:
 	case op_groupby:
 	case op_topn:
 	case op_sample:

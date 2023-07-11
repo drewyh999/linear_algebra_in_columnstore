@@ -99,6 +99,8 @@ extern list *list_keysort(list *l, int *key, fdup dup);
 extern list *list_dup(list *l, fdup dup);
 extern list *list_merge(list *l, list *data, fdup dup);
 extern list *list_merge_destroy(list *l, list *data, fdup dup);
+extern list *list_subtraction(list *left, list *right, fcmp compare_function);
+extern list *list_concat(list *l, list *r);
 
 extern list *list_flaten(list *l);
 
