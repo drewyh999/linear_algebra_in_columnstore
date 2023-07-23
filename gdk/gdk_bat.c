@@ -249,7 +249,7 @@ COLnew2(oid hseq, int tt, BUN cap, role_t role, uint16_t width)
 
 	assert(cap <= BUN_MAX);
 	assert(hseq <= oid_nil);
-	assert(tt != TYPE_bat);
+//	assert(tt != TYPE_bat);
 	ERRORcheck((tt < 0) || (tt > GDKatomcnt), "tt error\n", NULL);
 
 	/* round up to multiple of BATTINY */

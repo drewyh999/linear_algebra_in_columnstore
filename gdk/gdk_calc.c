@@ -3060,6 +3060,33 @@ ADD_3TYPE(dbl, hge, dbl, F)
 ADD_3TYPE(dbl, flt, dbl, F)
 ADD_3TYPE(dbl, dbl, dbl, F)
 
+static void *
+get_value_switch(const void *bat_base, int type, int offset){
+    type = ATOMbasetype(type);
+    switch (type) {
+        case TYPE_bte:
+            return (((bte*)(bat_base)) + offset);
+        case TYPE_sht:
+            return (((sht*)(bat_base)) + offset);
+        case TYPE_int:
+            return (((int*)(bat_base)) + offset);
+        case TYPE_lng:
+            return (((lng*)(bat_base)) + offset);
+#ifdef HAVE_HGE
+        case TYPE_hge:
+            return (((hge*)(bat_base)) + offset);
+#endif
+        case TYPE_flt:
+            return (((flt*)(bat_base)) + offset);
+        case TYPE_dbl:
+            return (((dbl*)(bat_base)) + offset);
+        default:
+            GDKerror("%s: type %s not supported.\n",
+                     "batcalc.transpose", ATOMname(type));
+            return NULL;
+    }
+}
+
 static BUN
 add_typeswitchloop(const void *lft, int tp1, bool incr1,
 		   const void *rgt, int tp2, bool incr2,
@@ -4366,6 +4393,85 @@ addstr_loop(BAT *b1, const char *l, BAT *b2, const char *r, BAT *bn, BATiter b1i
 	GDKfree(s);
 	return BUN_NONE;
 }
+
+BAT *BATtransposeheader(BAT *ordering_schema_bat){
+    BAT *str_bat = BATconvert(ordering_schema_bat, NULL, TYPE_str, 1, 0, 0, 0);
+    BAT *res = COLnew(0, TYPE_str, 0, TRANSIENT);
+    // Append C as the first header name
+    if(BUNappend(res, "C", 0) != GDK_SUCCEED) {
+        GDKerror("batcalc transposition header creation failed.\n");
+        return NULL;
+    }
+    // Append converted string bat to transposed header
+    if(BATappend(res, str_bat, NULL,false) != GDK_SUCCEED){
+        GDKerror("batcalc transposition header creation failed. fail to append bat\n");
+        return NULL;
+    }
+    return res;
+}
+
+
+BAT *
+BATtranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_bats, int application_schema_count) {
+    int result_size = application_schema_count + 1;
+    BAT *transposition_result = COLnew(0, TYPE_bat, result_size, TRANSIENT);
+    BUN result_count = BATcount(ordering_schema_bat) + 1; /* the length of ordering schema and the header*/
+    unsigned char result_type = application_schema_bats[0] -> ttype;
+    BAT *result_columns[result_count];
+
+    // Create bats containing results of transposition
+    BAT *new_order_schema_bat = COLnew(0, TYPE_str, result_size, TRANSIENT);
+    BBPkeepref(new_order_schema_bat -> batCacheid);
+    result_columns[0] = new_order_schema_bat;
+    BAT *temp_bat;
+    if(BUNappend(transposition_result, &(new_order_schema_bat -> batCacheid), false) != GDK_SUCCEED){
+        GDKerror("batcalc.transpose error: Cannot append BAT id to result BAT");
+        return NULL;
+    }
+    for(BUN i = 1;i < result_count; i ++){
+        temp_bat = COLnew(0, result_type, result_size, TRANSIENT);
+        BBPkeepref(temp_bat -> batCacheid);
+        result_columns[i] = temp_bat;
+        // Append the cache id of bats created to result
+        if(BUNappend(transposition_result, &(temp_bat -> batCacheid), false) != GDK_SUCCEED){
+            GDKerror("batcalc.transpose error: Cannot append BAT id to result BAT");
+            return NULL;
+        }
+    }
+    // Use the original header as the new ordering schema, but now as we have not found a way to get them, we use Z as placeholder
+    for(int ap_idx = 0; ap_idx < application_schema_count; ap_idx++) {
+        if(BUNappend(new_order_schema_bat, "Z", true) != GDK_SUCCEED){
+            GDKerror("batcalc.transpose error: Cannot append value to output BATs");
+        }
+    }
+
+    // Iterate through input application BATs and append their value to output
+    BAT *curr_out_bat;
+    for(BUN out_idx = 1; out_idx < result_count; out_idx ++) {
+        curr_out_bat = result_columns[out_idx];
+        for (int ap_idx = 0; ap_idx < application_schema_count; ap_idx++) {
+            BAT *curr_ap_bat = application_schema_bats[ap_idx];
+            BATiter curr_ap_i = bat_iterator(curr_ap_bat);
+            void *value = get_value_switch(curr_ap_i.base, result_type,out_idx - 1);
+            if(BUNappend(curr_out_bat, value, true) != GDK_SUCCEED){
+                GDKerror("batcalc.transpose error: Cannot append value to output BATs");
+            }
+        }
+        // TODO Add column name to the output bat
+    }
+//    for(BUN i = 0;i < result_count; i ++){
+//        BATprint(stdout_wastream(), result_columns[i]);
+//    }
+//    BATprint(stdout_wastream(), headers);
+    // (int*)iterator.base -> access value
+
+//    fprintf(stderr, "%d\n", (header_i.base)[0]);
+    (void) headers;
+//    (void) application_schema_bats;
+
+    return transposition_result;
+}
+
 
 BAT *
 BATcalcadd(BAT *b1, BAT *b2, BAT *s1, BAT *s2, int tp, bool abort_on_error)

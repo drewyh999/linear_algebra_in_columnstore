@@ -781,6 +781,9 @@ typedef struct BAT {
 	MT_Lock theaplock;	/* lock protecting heap reference changes */
 	MT_RWLock thashlock;	/* lock specifically for hash management */
 	MT_Lock batIdxLock;	/* lock to manipulate other indexes/properties */
+
+    /* matrix operation properties */
+    const char *cname; /* only presents with columns after transposition, containing the column name of a BAT */
 } BAT;
 
 /* macros to hide complexity of the BAT structure */
@@ -1533,6 +1536,15 @@ gdk_export BBPrec *BBP[N_BBPINIT];
 #define BBPRENAME_ILLEGAL	(-2)
 #define BBPRENAME_LONG		(-3)
 #define BBPRENAME_MEMORY	(-4)
+
+// Global cache for transposed columns and their names
+typedef struct BATcolumnnameCache{
+    bat bid;
+    const char *cname;
+    struct BATcolumnnameCache* next;
+}BATcolumnnameCache;
+
+gdk_export BATcolumnnameCache *columnnameCache;
 
 gdk_export void BBPlock(void);
 gdk_export void BBPunlock(void);

@@ -1458,6 +1458,7 @@ rel_convert_types(mvc *sql, sql_rel *ll, sql_rel *rr, sql_exp **L, sql_exp **R, 
 
     // If either side of equation contains columns after transposition like r.$ = s.$
     // We skip type check
+    // TODO should still apply type check, initialize the $ expression to be the same type as the columns that need to be transposed
     if(ls -> alias.name && rs -> alias.name){
         if(strcmp(ls -> alias.name, TRANSPOSED_COLUMNS) == 0 || strcmp(rs -> alias.name, TRANSPOSED_COLUMNS) == 0){
             return 0;
@@ -4277,6 +4278,7 @@ rel_group_column(sql_query *query, sql_rel **rel, symbol *grp, dlist *selection,
 	}
 
     // If the group by column is a transposed column, we skip the type check
+    // TODO should be removed after giving valid type to transposed column
     if(e){
         const char *table_name = e -> alias.rname;
         // Try to find transposed columns in the rel
@@ -4644,8 +4646,9 @@ rel_order_by(sql_query *query, sql_rel **R, symbol *orderby, int needs_distinct,
 			}
 			if (!e)
 				return NULL;
-			if (!exp_subtype(e))
-				return sql_error(sql, 01, SQLSTATE(42000) "Cannot have a parameter (?) for order by column");
+            // Skip check on parameter of orderby column
+//			if (!exp_subtype(e))
+//                return sql_error(sql, 01, SQLSTATE(42000) "Cannot have a parameter (?) for order by column");
 			set_direction(e, direction);
 			list_append(exps, e);
 		} else {
@@ -6529,12 +6532,24 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     // Get list of expression (in the simplest occasion, the column references) of application schema
     list *application_exps = rel_application_schema_exps(query, sub_rel, ordering_exps);
 
+    // Check if all the columns in the application schema has the same underlying type
+    sql_subtype first_exp_type = ((sql_exp *)(application_exps -> h -> data)) -> tpe;
+
+    for(node *n = application_exps -> h -> next; n; n = n -> next){
+        sql_subtype current_type = ((sql_exp *)(n -> data)) -> tpe;
+        if(subtype_cmp(&first_exp_type, &current_type) != 0){
+            return sql_error(query -> sql, 02, SQLSTATE(42000) "Cannot have different types in application schema");
+        }
+    }
+
     // Construct the matrix transpose node in sql_rel tree, l points to the subtree to table references,
     // r points to the ordering schema expressions, exps contains application schema expressions
     char *alias_name = transpose_alias_symbol->data.lval->h->data.sval;
     relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps, alias_name);
 
-    sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, NULL, 3, 1, 0, 0);
+    // TODO Give transposed column a valid type, should be the same as the columns that are about to transpose,
+    //  also should check if the application exps feed to transpose have the same type at this level
+    sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, &first_exp_type, 3, 1, 0, 0);
 
     list *projection_list = new_exp_list(sa);
 

@@ -1016,7 +1016,7 @@ stmt_result2(backend *be, stmt *s, int nr)
     stmt *ns;
 
 
-    ns = stmt_create(be->mvc->sa, st_result);
+    ns = stmt_create(be->mvc->sa, st_alias);
     if(!ns) {
         return NULL;
     }
@@ -2318,7 +2318,7 @@ stmt_take(backend *be, stmt *op1, const char *cname) {
     q = pushArgument(mb, q, op1->nr);
 
     if (q) {
-        stmt *s = stmt_create(be->mvc->sa, st_result);
+        stmt *s = stmt_create(be->mvc->sa, st_alias);
         if (s == NULL) {
             freeInstruction(q);
             return NULL;
@@ -2922,6 +2922,8 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 
 		if (neat_table_name && neat_schema_name && (fqtnl = strlen(neat_table_name) + 1 + strlen(neat_schema_name) + 1) ){
 			fqtn = SA_NEW_ARRAY(sql->ta, char, fqtnl);
+            // TODO concatenate type and length of transposed columns as well, the new ordering schema will always be type str
+            //  so type should first be a string then repeat the application schema type
 			if(fqtn) {
 				snprintf(fqtn, fqtnl, "%s.%s", neat_schema_name, neat_table_name);
 				metaInfo(tblPtr,Str,fqtn);
@@ -2947,7 +2949,7 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
                         // Middle header is a transposed column
                         if(currentTransposeDollar){
                             // Determine if we need to merge result of bat.append and bat.pack
-                            if(concatPtr && concatId != nmeId){
+                            if(concatId != CONCAT_INIT_ID && concatId != nmeId){
                                 InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 2);
                                 i = pushArgument(mb, i, concatId);
                                 i = pushArgument(mb, i, nmeId);
@@ -3993,6 +3995,7 @@ stmt_alias_(backend *be, stmt *op1, const char *tname, const char *alias)
 	s->nrcols = op1->nrcols;
 	s->key = op1->key;
 	s->aggr = op1->aggr;
+    s -> transpose_header = op1 -> transpose_header;
 
 	s->tname = tname;
 	s->cname = alias;
@@ -4038,7 +4041,7 @@ stmt_matrix_transpose(backend *be, list *order_alignment_stmts, list *applicatio
         transpose_instruction = pushArgument(mb, transpose_instruction, getDestVar(application_alignment_instr));
     }
 
-    stmt *s = stmt_create(sql -> sa, st_list);
+    stmt *s = stmt_create(sql -> sa, st_transpose_list);
     if(s){
         s -> op4.lval = list_concat(order_alignment_stmts, application_alignment_stmts);
         s -> tname = transpose_name;
@@ -4046,7 +4049,7 @@ stmt_matrix_transpose(backend *be, list *order_alignment_stmts, list *applicatio
         s -> q = transpose_instruction;
         // For the cname and name of these stmt after transposition, we still give it the $ as the column name
         // so that operations above transpose can use it to identify transposed columns
-        s -> cname = "$";
+        s -> cname = TRANSPOSED_COLUMNS;
         s -> nrcols = 1;
         return s;
     }
@@ -4086,6 +4089,9 @@ tail_type(stmt *st)
 		case st_list:
 			st = st->op4.lval->h->data;
 			continue;
+        case st_transpose_list:
+            st = st->op4.lval->t->data;
+            continue;
 		case st_bat:
 			return &st->op4.cval->type;
 		case st_idxbat:
@@ -4254,6 +4260,7 @@ _column_name(sql_allocator *sa, stmt *st)
 		return "single_value";
 
 	case st_list:
+    case st_transpose_list:
 		if (list_length(st->op4.lval))
 			return column_name(sa, st->op4.lval->h->data);
 		/* fall through */
@@ -4312,6 +4319,7 @@ schema_name(sql_allocator *sa, stmt *st)
 	case st_temp:
 	case st_single:
 		return NULL;
+    case st_transpose_list:
 	case st_list:
 		if (list_length(st->op4.lval))
 			return schema_name(sa, st->op4.lval->h->data);

@@ -26,6 +26,7 @@ typedef enum expression_type {
 #define CARD_MULTI 3
 
 #define TRANSPOSED_COLUMNS "$"
+#define TRANSPOSED_COLUMN_HEADER "$H$"
 
 typedef struct sql_exp_name {
 	unsigned int label;

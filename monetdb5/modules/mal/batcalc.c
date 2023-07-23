@@ -624,13 +624,63 @@ CMDbatADD(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 						 calctype, 0, "batcalc.add_noerror");
 }
 
+
+// Function signature looks like:
+// returned columns:bat[:BAT], returned headers:bat[:str] transpose(ordering schema:bat[:any], application schema any bats...)
 static str
 CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     (void) cntxt;
-    (void)mb -> var;
-    (void)stk -> blk;
-    (void)pci -> argv;
+    (void) mb;
+    bat bid;
+    unsigned char application_schema_type = 0;
+    BAT *result_columns = NULL, *result_headers = NULL, *order_schema_bat = NULL, *application_bat = NULL;
+
+    // Get number of application BATs. we use total number of arguments minus returned arguments minus the ordering schema, which is one
+    int application_schema_column_len = pci -> argc - pci -> retc - 1;
+    BAT *application_schema_bats[application_schema_column_len];
+
+    // Third argument is the order schema bat
+    order_schema_bat = BATdescriptor(*getArgReference_bat(stk, pci, 2));
+
+    // Get result header from order schema bat
+    result_headers = BATtransposeheader(order_schema_bat);
+
+    //Put all BATs into array and pass to gdk function for actual transposition
+    // also check the BAT type at this time to make sure application schema is of same type
+    for(int i = 0;i < application_schema_column_len;i ++){
+        bid = *getArgReference_bat(stk, pci, 3 + i);
+        application_bat = BATdescriptor(bid);
+        // Initialize application schema type if not
+        if(application_schema_type == 0)
+            application_schema_type = application_bat -> ttype;
+        if(application_bat == NULL)
+            goto bailout;
+        if(application_bat -> ttype == TYPE_str){
+            throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_NOT_SUPPORT);
+        }
+        if(application_bat -> ttype != application_schema_type){
+            throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_CONFLICT);
+        }
+        application_schema_bats[i] = application_bat;
+    }
+    // TODO Get names of the input bats and use them as the new ordering schema column
+    result_columns = BATtranspose(result_headers, order_schema_bat, application_schema_bats, application_schema_column_len);
+
+    if(!result_columns || !result_headers)
+        goto bailout;
+    *getArgReference_bat(stk, pci, 0) = result_columns -> batCacheid;
+    *getArgReference_bat(stk, pci, 1) = result_headers -> batCacheid;
+    BBPkeepref(result_columns -> batCacheid);
+    BBPkeepref(result_headers -> batCacheid);
+
     return MAL_SUCCEED;
+bailout:
+    if (result_columns)
+        BBPunfix(result_columns->batCacheid);
+    if (result_headers)
+        BBPunfix(result_headers->batCacheid);
+
+    throw(MAL, "matrix transpose", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
 }
 
 static str

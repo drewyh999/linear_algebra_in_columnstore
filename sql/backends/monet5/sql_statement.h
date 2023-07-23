@@ -96,6 +96,7 @@ typedef enum stmt_type {
 
 	/* used internally only */
 	st_list,
+    st_transpose_list,
 
 	/* flow control statements */
 	st_cond,

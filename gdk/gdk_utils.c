@@ -1993,7 +1993,9 @@ GDKfree(void *s)
 	{
 		size_t i = ((size_t *) s)[-2]; /* how much asked for last */
 		for (; i < asize - MALLOC_EXTRA_SPACE; i++)
+            // TODO Should turn on the assertion, cause of assertion failing unknown
 			assert(((char *) s)[i] == '\xBD');
+//            assert(1);
 	}
 	((size_t *) s)[-1] |= 2; /* indicate area is freed */
 

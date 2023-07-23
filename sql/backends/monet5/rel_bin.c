@@ -177,7 +177,7 @@ list_find_column(backend *be, list *l, const char *rname, const char *name )
                 // And if the column is a header information of transposition, we should also let it be found
 				if ((rnme && strcmp(rnme, rname) == 0 &&
 		 	            strcmp(nme, name) == 0 ) ||
-                        (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$") == 0) ||
+                        (rname && strcmp(rnme, rname) == 0 && strcmp(nme, TRANSPOSED_COLUMNS) == 0) ||
                         (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$H$") == 0)) {
 					res = s;
 					break;
@@ -206,7 +206,7 @@ list_find_column(backend *be, list *l, const char *rname, const char *name )
 
 			if ((rnme && strcmp(rnme, rname) == 0 &&
                  strcmp(nme, name) == 0 ) ||
-                (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$") == 0) ||
+                (rname && strcmp(rnme, rname) == 0 && strcmp(nme, TRANSPOSED_COLUMNS) == 0) ||
                 (rname && strcmp(rnme, rname) == 0 && strcmp(nme, "$H$") == 0)) {
 				res = n->data;
 				break;
@@ -408,7 +408,7 @@ subrel_project( backend *be, stmt *s, list *refs, sql_rel *rel)
 	for(node *n = s->op4.lval->h; n; n = n->next) {
 		stmt *c = n->data;
 
-		assert(c->type == st_alias || (c->type == st_join && c->flag == cmp_project) || c->type == st_bat || c->type == st_idxbat || c->type == st_single);
+		assert(c->type == st_alias || (c->type == st_join && c->flag == cmp_project) || c->type == st_bat || c->type == st_idxbat || c->type == st_single || c -> type == st_result);
 		if (c->type != st_alias) {
 			c = stmt_project(be, cand, c);
 		} else if (c->op1->type == st_mirror && is_tid_chain(cand)) { /* alias with mirror (ie full row ids) */
@@ -1379,7 +1379,7 @@ exp_bin(backend *be, sql_exp *e, stmt *left, stmt *right, stmt *grp, stmt *ext, 
 			s = bin_find_column(be, right, e->l, e->r);
 		if (!s && left)
 			s = bin_find_column(be, left, e->l, e->r);
-        if(s && s -> cname && strcmp(s -> cname, "$") == 0 && strcmp(e -> alias.name, "$") != 0){
+        if(s && s -> cname && strcmp(s -> cname, TRANSPOSED_COLUMNS) == 0 && strcmp(e -> alias.name, TRANSPOSED_COLUMNS) != 0){
             s = stmt_take(be, s, e -> alias.name);
         }
 		if (s && grp)
@@ -6562,6 +6562,8 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 	s = subrel_bin(be, rel, refs);
 	s = subrel_project(be, s, refs, rel);
 
+//    printFunction(stdout_wastream(), be->mb, 0, 23);
+
 	if (!s)
 		return NULL;
 	if (sqltype == Q_SCHEMA)
@@ -6575,5 +6577,6 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 			return NULL;
 		}
 	}
+//    printFunction(stdout_wastream(), be->mb, 0, 23);
 	return s;
 }
