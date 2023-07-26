@@ -4438,9 +4438,10 @@ BATtranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_ba
             return NULL;
         }
     }
-    // Use the original header as the new ordering schema, but now as we have not found a way to get them, we use Z as placeholder
+    // Use the original header as the new ordering schema
     for(int ap_idx = 0; ap_idx < application_schema_count; ap_idx++) {
-        if(BUNappend(new_order_schema_bat, "Z", true) != GDK_SUCCEED){
+        const char *cname = application_schema_bats[ap_idx] -> cname;
+        if(BUNappend(new_order_schema_bat, cname, true) != GDK_SUCCEED){
             GDKerror("batcalc.transpose error: Cannot append value to output BATs");
         }
     }

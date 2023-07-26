@@ -869,6 +869,8 @@ ALGprojection2(bat *result, const bat *lid, const bat *r1id, const bat *r2id)
 		throw(MAL, "algebra.projection", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
 	}
 	bn = BATproject2(l, r1, r2);
+    // Add column information to BAT descriptor
+    bn -> cname = r1 -> cname;
 	BBPunfix(l->batCacheid);
 	BBPunfix(r1->batCacheid);
 	if (r2)

@@ -1338,6 +1338,10 @@ mvc_bind_wrap(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 		BBPkeepref(b->batCacheid);
 		*bid = b->batCacheid;
 	}
+    // Add column information to the BAT descriptor
+    BAT *result_bat = BATdescriptor(*bid);
+    result_bat -> cname = cname;
+    BBPkeepref(result_bat -> batCacheid);
 	return MAL_SUCCEED;
 }
 

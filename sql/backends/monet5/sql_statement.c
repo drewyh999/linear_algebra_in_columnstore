@@ -2922,8 +2922,6 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
 
 		if (neat_table_name && neat_schema_name && (fqtnl = strlen(neat_table_name) + 1 + strlen(neat_schema_name) + 1) ){
 			fqtn = SA_NEW_ARRAY(sql->ta, char, fqtnl);
-            // TODO concatenate type and length of transposed columns as well, the new ordering schema will always be type str
-            //  so type should first be a string then repeat the application schema type
 			if(fqtn) {
 				snprintf(fqtn, fqtnl, "%s.%s", neat_schema_name, neat_table_name);
 				metaInfo(tblPtr,Str,fqtn);
