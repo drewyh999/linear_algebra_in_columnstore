@@ -303,8 +303,38 @@ static str
 CMDBATtake(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     (void) cntxt;
     (void) mb;
-    (void) stk;
-    (void) pci;
+    // Get return variable
+    bat *bn = getArgReference_bat(stk, pci, 0);
+    const char *cname = *getArgReference_str(stk, pci, 1);
+    BAT *id_bat = BATdescriptor(*getArgReference_bat(stk, pci, 2));
+
+    // If the BAT we tried to take the specific column from is not a id BAT throw an error
+    if(id_bat -> ttype != TYPE_bat){
+        throw(MAL, "bat.take", SQLSTATE(HY002) RUNTIME_TYPE_NOT_SUPPORTED);
+    }
+
+
+    // Iterate through all the id in the input parameter and try to find the BAT with given name
+    BUN id_bat_size = id_bat -> batCount;
+    bat result_id;
+    bool found = 0;
+    BATiter id_bat_i = bat_iterator(id_bat);
+    for(BUN i = 0;i < id_bat_size; i ++){
+        bat bat_id = *(((int*) id_bat_i.base) + i);
+        BAT *b = BATdescriptor(bat_id);
+        if(strcmp(b -> cname, cname) == 0){
+            found = 1;
+            result_id = b -> batCacheid;
+        }
+    }
+    if(found){
+        *bn = result_id;
+        BBPkeepref(*bn);
+    }
+    else{
+        throw(MAL, "bat.take", "column %s not found", cname);
+    }
+
     return MAL_SUCCEED;
 }
 

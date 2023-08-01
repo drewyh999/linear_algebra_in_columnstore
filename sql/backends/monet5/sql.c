@@ -2400,7 +2400,6 @@ mvc_result_set_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 		msg = createException(SQL, "sql.resultSet", SQLSTATE(HY005) "Cannot access column descriptor");
 		goto wrapup_result_set;
 	}
-    // TODO probably here should be a problem as well?
     int result_nr_cols = pci->argc - (pci->retc + 5);
     // check if there are transposed result so change the nr cols accordingly
     for(i = 6;i < pci->argc;i ++){
@@ -2448,12 +2447,10 @@ mvc_result_set_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
             BAT *result_bat = b;
             BUN result_bat_count = result_bat -> batCount;
             BATiter result_bat_i = bat_iterator(result_bat);
-//            be -> results -> nr_cols += (int)result_bat_count - 1;
             // Export order schema column
             colname = BUNtvar(iteratr,col_o);
             bat ord_sche_bat_id = *(((bat *) (result_bat_i.base)));
             BAT *order_bat = BATdescriptor(ord_sche_bat_id);
-            BATprint(stdout_wastream(), order_bat);
             // Here we should use type name and digit and scale of str type
             if (mvc_result_column(be, tblname, colname, "varchar", 0, 0, order_bat))
                 msg = createException(SQL, "sql.resultSet", SQLSTATE(42000) "Cannot access column descriptor %s.%s",tblname,colname);
@@ -2462,7 +2459,6 @@ mvc_result_set_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
                 colname = BUNtvar(iteratr,col_o + idx);
                 bat inner_bat_id = *(((bat *) (result_bat_i.base)) + idx);
                 BAT *inner_bat = BATdescriptor(inner_bat_id);
-                BATprint(stdout_wastream(), inner_bat);
                 if (mvc_result_column(be, tblname, colname, tpename, *digits, *scaledigits, inner_bat))
                     msg = createException(SQL, "sql.resultSet", SQLSTATE(42000) "Cannot access column descriptor %s.%s",tblname,colname);
             }
@@ -2727,8 +2723,6 @@ mvc_row_result_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
                 bat inner_bat_id = *(((bat*)(result_bat_i.base)) + idx);
                 BAT *inner_bat = BATdescriptor(inner_bat_id);
                 mtype_inner = newBatType(inner_bat -> ttype);
-//                if (ATOMextern(mtype_inner))
-//                    value = *(ptr *) value;
                 if ((ok = mvc_result_value(be, tblname, colname, tpename, *digits++, *scaledigits++, (void *)inner_bat, mtype_inner) < 0)) {
                     msg = createException(SQL, "sql.rsColumn", SQLSTATE(45000) "Result set construction failed: %s",
                                           mvc_export_error(be, be->out, ok));

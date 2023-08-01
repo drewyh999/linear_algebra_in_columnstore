@@ -84,6 +84,7 @@
 #define RUNTIME_OBJECT_MISSING "Object not found"
 #define RUNTIME_TRANSPOSE_TYPE_CONFLICT "Columns feed to transpose has different data type"
 #define RUNTIME_TRANSPOSE_TYPE_NOT_SUPPORT "Transposition does not support string bats yet"
+#define RUNTIME_TYPE_NOT_SUPPORTED "Type not supported"
 #define RUNTIME_SIGNATURE_MISSING "The <module>.<function> not found"
 #define RUNTIME_OBJECT_UNDEFINED "Object not found"
 #define RUNTIME_UNKNOWN_INSTRUCTION "Instruction type not supported"

@@ -56,6 +56,8 @@
 	 ? BATconstant(HSEQ, TYPE_void, VALUE, CNT, ROLE)		\
 	 : BATconstant(HSEQ, TAILTYPE, VALUE, CNT, ROLE))
 
+#define TRANSPOSE_NEW_ORDER_SCHEMA_CNAME "C"
+
 static gdk_return
 checkbats(BAT *b1, BAT *b2, const char *func)
 {
@@ -4398,7 +4400,7 @@ BAT *BATtransposeheader(BAT *ordering_schema_bat){
     BAT *str_bat = BATconvert(ordering_schema_bat, NULL, TYPE_str, 1, 0, 0, 0);
     BAT *res = COLnew(0, TYPE_str, 0, TRANSIENT);
     // Append C as the first header name
-    if(BUNappend(res, "C", 0) != GDK_SUCCEED) {
+    if(BUNappend(res, TRANSPOSE_NEW_ORDER_SCHEMA_CNAME, 0) != GDK_SUCCEED) {
         GDKerror("batcalc transposition header creation failed.\n");
         return NULL;
     }
@@ -4445,6 +4447,9 @@ BATtranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_ba
             GDKerror("batcalc.transpose error: Cannot append value to output BATs");
         }
     }
+    // Append column name to new ordering schema
+    BATiter header_i = bat_iterator(headers);
+    new_order_schema_bat -> cname = BUNtvar(header_i, 0);
 
     // Iterate through input application BATs and append their value to output
     BAT *curr_out_bat;
@@ -4458,17 +4463,10 @@ BATtranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_ba
                 GDKerror("batcalc.transpose error: Cannot append value to output BATs");
             }
         }
-        // TODO Add column name to the output bat
+        // Add column name to out BAT
+        curr_out_bat -> cname = BUNtvar(header_i, out_idx);
     }
-//    for(BUN i = 0;i < result_count; i ++){
-//        BATprint(stdout_wastream(), result_columns[i]);
-//    }
-//    BATprint(stdout_wastream(), headers);
-    // (int*)iterator.base -> access value
-
-//    fprintf(stderr, "%d\n", (header_i.base)[0]);
-    (void) headers;
-//    (void) application_schema_bats;
+    bat_iterator_end(&header_i);
 
     return transposition_result;
 }

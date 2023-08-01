@@ -5498,7 +5498,6 @@ rel_table_exp(sql_query *query, sql_rel **rel, symbol *column_e, bool single_exp
 				*rel = project->l;
 			}
 		}
-        // TODO here the pipline does not support project on nothing with using select *, otherwise it will tell Table expression without table name
 		if ((exps || (exps = rel_table_projections(sql, project, tname, 0)) != NULL) && !list_empty(exps)) {
 			if (!(exps = check_distinct_exp_names(sql, exps)))
 				return sql_error(sql, 02, SQLSTATE(42000) "Duplicate column names in table%s%s%s projection list", tname ? " '" : "", tname ? tname : "", tname ? "'" : "");
@@ -6362,108 +6361,6 @@ rel_loader_function(sql_query *query, symbol* fcall, list *fexps, sql_subfunc **
 	return rel_table_func(sql->sa, sq, e, fexps, (sq)?TABLE_FROM_RELATION:TABLE_PROD_FUNC);
 }
 
-// TODO Implement the function that builds the table reference raw input back
-//static char * rel_rebuild_table_ref_input(sql_rel *relation_tree);
-
-//static char * rel_rebuild_table_ref_input(sql_rel *relation_tree){
-//    if(!relation_tree)
-//        return NULL;
-//    switch(relation_tree -> op){
-//        case op_join:
-//        case op_left:
-//        case op_right:
-//        case op_full:
-//            lexps = _rel_projections(sql, rel->l, tname, settname, intern, basecol);
-//            exps_reset_props(lexps, is_right(rel->op) || is_full(rel->op));
-//            rexps = _rel_projections(sql, rel->r, tname, settname, intern, basecol);
-//            exps_reset_props(rexps, is_left(rel->op) || is_full(rel->op));
-//            return list_merge(lexps, rexps, (fdup)NULL);
-//        case op_groupby:
-//            if (list_empty(rel->exps) && rel->r) {
-//                list *r = rel->r;
-//                int label = 0;
-//
-//                if (!settname)
-//                    label = ++sql->label;
-//                exps = new_exp_list(sql->sa);
-//                for (node *en = r->h; en; en = en->next) {
-//                    sql_exp *e = en->data;
-//
-//                    if (basecol && !is_basecol(e))
-//                        continue;
-//                    if (intern || !is_intern(e)) {
-//                        append(exps, e = exp_alias_or_copy(sql, tname, exp_name(e), rel, e));
-//                        if (!settname) /* noname use alias */
-//                            exp_setrelname(sql->sa, e, label);
-//
-//                    }
-//                }
-//                return exps;
-//            }
-//            /* fall through */
-//        case op_project:
-//        case op_basetable:
-//        case op_table:
-//
-//        case op_union:
-//        case op_except:
-//        case op_inter:
-//            if (is_basetable(rel->op) && !rel->exps)
-//                return rel_base_projection(sql, rel, intern);
-//            if (rel->exps) {
-//                int label = 0;
-//
-//                if (!settname)
-//                    label = ++sql->label;
-//                exps = new_exp_list(sql->sa);
-//                for (node *en = rel->exps->h; en; en = en->next) {
-//                    sql_exp *e = en->data;
-//
-//                    if (basecol && !is_basecol(e))
-//                        continue;
-//                    if (intern || !is_intern(e)) {
-//                        append(exps, e = exp_alias_or_copy(sql, tname, exp_name(e), rel, e));
-//                        if (!settname) /* noname use alias */
-//                            exp_setrelname(sql->sa, e, label);
-//
-//                    }
-//                }
-//                return exps;
-//            }
-//            /* I only expect set relations to hit here */
-//            assert(is_set(rel->op));
-//            lexps = _rel_projections(sql, rel->l, tname, settname, intern, basecol);
-//            rexps = _rel_projections(sql, rel->r, tname, settname, intern, basecol);
-//            if (lexps && rexps) {
-//                int label = 0;
-//
-//                if (!settname)
-//                    label = ++sql->label;
-//                assert(list_length(lexps) == list_length(rexps));
-//                for (node *en = lexps->h; en; en = en->next) {
-//                    sql_exp *e = en->data;
-//
-//                    e->card = rel->card;
-//                    if (!settname) /* noname use alias */
-//                        exp_setrelname(sql->sa, e, label);
-//                }
-//            }
-//            return lexps;
-//        case op_ddl:
-//        case op_semi:
-//        case op_anti:
-//
-//        case op_select:
-//        case op_topn:
-//        case op_sample:
-//            // TODO Here the matrix transpose should return a list of place holder exps
-//        case op_matrix_transpose:
-//            return _rel_projections(sql, rel->l, tname, settname, intern, basecol);
-//        default:
-//            return NULL;
-//    }
-//}
-
 static sql_rel * rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *transpose_symbol);
 
 static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tree, list *ordering_exps);
@@ -6547,8 +6444,6 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     char *alias_name = transpose_alias_symbol->data.lval->h->data.sval;
     relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps, alias_name);
 
-    // TODO Give transposed column a valid type, should be the same as the columns that are about to transpose,
-    //  also should check if the application exps feed to transpose have the same type at this level
     sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, &first_exp_type, 3, 1, 0, 0);
 
     list *projection_list = new_exp_list(sa);

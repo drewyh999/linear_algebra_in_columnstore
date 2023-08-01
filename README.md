@@ -1,5 +1,13 @@
 # Master thesis:Optimizing linear algebra computations in MonetDB
 
+## Credits
+
+[MonetDB](https://www.monetdb.org/)
+
+Link to original code base [MonetDB 11.43.25 Jan2022-SP6](https://www.monetdb.org/downloads/sources/Jan2022-SP6/)
+
+
+
 ## Link to documentations and diagrams
 
 ### Lucid charts

@@ -776,14 +776,14 @@ typedef struct BAT {
 	BUN batCount;		/* tuple count */
 	BUN batCapacity;	/* tuple capacity */
 
+    /* matrix operation properties */
+    const char *cname; /* only presents with columns after transposition, containing the column name of a BAT */
+
 	/* dynamic column properties */
 	COLrec T;		/* column info */
 	MT_Lock theaplock;	/* lock protecting heap reference changes */
 	MT_RWLock thashlock;	/* lock specifically for hash management */
 	MT_Lock batIdxLock;	/* lock to manipulate other indexes/properties */
-
-    /* matrix operation properties */
-    const char *cname; /* only presents with columns after transposition, containing the column name of a BAT */
 } BAT;
 
 /* macros to hide complexity of the BAT structure */

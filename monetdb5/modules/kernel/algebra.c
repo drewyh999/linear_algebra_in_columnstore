@@ -868,7 +868,28 @@ ALGprojection2(bat *result, const bat *lid, const bat *r1id, const bat *r2id)
 		BBPunfix(r1->batCacheid);
 		throw(MAL, "algebra.projection", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
 	}
-	bn = BATproject2(l, r1, r2);
+    // Project on id BAT
+    if(r1 -> ttype == TYPE_bat){
+        BATiter id_i = bat_iterator(r1);
+        BUN id_bat_size = r1 -> batCount;
+        BAT *temp_result;
+        BAT *result_bat = COLnew(0, r1 -> ttype, r1 -> batCount, TRANSIENT);
+        // Iterate through the id BAT and project on every one of them
+        for(BUN i = 0;i < id_bat_size;i ++) {
+            bat bid = *(((bat*)id_i.base) + i);
+            BAT *r_i = BATdescriptor(bid);
+            temp_result = BATproject2(l, r_i, NULL);
+            BBPkeepref(temp_result -> batCacheid);
+            if(BUNappend(result_bat, &(temp_result -> batCacheid), 0) != GDK_SUCCEED){
+                throw(MAL, "algebra.projection", SQLSTATE(HY002) "Error projecting on id BAT");
+            }
+        }
+        BBPkeepref(result_bat -> batCacheid);
+        bn = result_bat;
+    }
+    else {
+        bn = BATproject2(l, r1, r2);
+    }
     // Add column information to BAT descriptor
     bn -> cname = r1 -> cname;
 	BBPunfix(l->batCacheid);

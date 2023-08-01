@@ -616,6 +616,11 @@ str runMALsequence(Client cntxt, MalBlkPtr mb, int startpc,
 					garbage[i] = a;
 				else
 					garbage[i] = -1;
+
+                // Do not garbage collect the transposition results
+                if(strcmp(pci -> fcnname, "transpose") == 0 || strcmp(pci -> fcnname, "projection") == 0){
+                    garbage[i] = -1;
+                }
 			}
 		}
 

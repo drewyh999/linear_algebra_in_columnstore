@@ -626,7 +626,7 @@ CMDbatADD(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 
 
 // Function signature looks like:
-// returned columns:bat[:BAT], returned headers:bat[:str] transpose(ordering schema:bat[:any], application schema any bats...)
+// returned_columns:bat[:BAT], returned_headers:bat[:str] transpose(ordering schema:bat[:any], application schema any bats...)
 static str
 CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     (void) cntxt;
@@ -663,7 +663,6 @@ CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
         }
         application_schema_bats[i] = application_bat;
     }
-    // TODO Get names of the input bats and use them as the new ordering schema column
     result_columns = BATtranspose(result_headers, order_schema_bat, application_schema_bats, application_schema_column_len);
 
     if(!result_columns || !result_headers)
