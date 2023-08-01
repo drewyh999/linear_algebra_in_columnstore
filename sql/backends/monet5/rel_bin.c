@@ -6461,7 +6461,7 @@ static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list 
     stmt *transposed_header_stmt = stmt_result2(be, transpose_stmt, 1);
     // Alias the transpose header as $H$ for packing function to identify and correctly pack results
     transposed_header_stmt = stmt_alias(be, transposed_header_stmt, relation_tree -> transpose_alias, "$H$");
-//    transposed_columns_stmt -> transpose_header = transposed_header_stmt;
+    transposed_columns_stmt -> transpose_header = transposed_header_stmt;
     transpose_stmt -> transpose_header = transposed_header_stmt;
 
     list_append(result_list, transposed_columns_stmt);
