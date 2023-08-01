@@ -847,6 +847,7 @@ BATproject2(BAT *restrict l, BAT *restrict r1, BAT *restrict r2)
 		BBPreclaim(r1);
 	if (r2 != or2)
 		BBPreclaim(r2);
+    bn -> cname = r1 -> cname;
 	return bn;
 
   bailout:

@@ -322,6 +322,9 @@ CMDBATtake(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     for(BUN i = 0;i < id_bat_size; i ++){
         bat bat_id = *(((int*) id_bat_i.base) + i);
         BAT *b = BATdescriptor(bat_id);
+        if(!b -> cname){
+            throw(MAL, "bat.take", "column info lost");
+        }
         if(strcmp(b -> cname, cname) == 0){
             found = 1;
             result_id = b -> batCacheid;

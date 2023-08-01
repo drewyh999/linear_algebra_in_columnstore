@@ -2948,16 +2948,19 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
                         if(currentTransposeDollar){
                             // Determine if we need to merge result of bat.append and bat.pack
                             if(concatId != CONCAT_INIT_ID && concatId != nmeId){
-                                InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 2);
+                                InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 3);
                                 i = pushArgument(mb, i, concatId);
                                 i = pushArgument(mb, i, nmeId);
+                                // Force to append
+                                i = pushBit(mb, i, 1);
                                 concatId = getArg(i, 0);
                                 nmeId = concatId;
                             }
                             // Concatenate column header
-                            InstrPtr temp = newStmtArgs(mb, batRef, appendRef, 2);
+                            InstrPtr temp = newStmtArgs(mb, batRef, appendRef, 3);
                             temp = pushArgument(mb, temp, concatId);
                             temp = pushArgument(mb, temp, transposed_header_stmt -> nr);
+                            temp = pushBit(mb, temp, 1);
                             concatPtr = temp;
                             concatId = getArg(temp, 0);
                             nmeId = concatId;
@@ -2997,9 +3000,10 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
     if(hasTransposedHeader){
         // Determine if we need final merging of bat.pack and bat.append
         if(concatId != CONCAT_INIT_ID && concatId != nmeId){
-            InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 2);
+            InstrPtr  i = newStmtArgs(mb, batRef, appendRef, 3);
             i = pushArgument(mb, i, concatId);
             i = pushArgument(mb, i, nmeId);
+            i = pushBit(mb, i, 1);
             concatId = getArg(i, 0);
             nmeId = concatId;
         }
