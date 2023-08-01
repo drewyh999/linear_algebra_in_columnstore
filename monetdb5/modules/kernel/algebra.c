@@ -884,7 +884,6 @@ ALGprojection2(bat *result, const bat *lid, const bat *r1id, const bat *r2id)
                 throw(MAL, "algebra.projection", SQLSTATE(HY002) "Error projecting on id BAT");
             }
         }
-        BBPkeepref(result_bat -> batCacheid);
         bn = result_bat;
     }
     else {
