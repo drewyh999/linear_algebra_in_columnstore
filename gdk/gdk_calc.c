@@ -4415,14 +4415,14 @@ BAT *BATtransposeheader(BAT *ordering_schema_bat){
 
 BAT *
 BATtranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_bats, int application_schema_count) {
-    int result_size = application_schema_count + 1;
-    BAT *transposition_result = COLnew(0, TYPE_bat, result_size, TRANSIENT);
+    int result_bat_size = application_schema_count + 1; /* length of a single result BAT */
+    BAT *transposition_result = COLnew(0, TYPE_bat, result_bat_size, TRANSIENT);
     BUN result_count = BATcount(ordering_schema_bat) + 1; /* the length of ordering schema and the header*/
     unsigned char result_type = application_schema_bats[0] -> ttype;
     BAT *result_columns[result_count];
 
     // Create bats containing results of transposition
-    BAT *new_order_schema_bat = COLnew(0, TYPE_str, result_size, TRANSIENT);
+    BAT *new_order_schema_bat = COLnew(0, TYPE_str, result_bat_size, TRANSIENT);
     BBPkeepref(new_order_schema_bat -> batCacheid);
     result_columns[0] = new_order_schema_bat;
     BAT *temp_bat;
@@ -4431,7 +4431,7 @@ BATtranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_ba
         return NULL;
     }
     for(BUN i = 1;i < result_count; i ++){
-        temp_bat = COLnew(0, result_type, result_size, TRANSIENT);
+        temp_bat = COLnew(0, result_type, result_bat_size, TRANSIENT);
         BBPkeepref(temp_bat -> batCacheid);
         result_columns[i] = temp_bat;
         // Append the cache id of bats created to result

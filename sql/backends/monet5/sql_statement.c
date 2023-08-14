@@ -2940,6 +2940,7 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
                         else{
                             meta_without_pushing(nmePtr, nmeId, TYPE_str, args);
                             metaInfo(nmePtr, Str, cn);
+                            concatId = nmeId;
                         }
                     }
                     // Deal with column headers in the middle
@@ -3111,6 +3112,9 @@ stmt_append(backend *be, stmt *c, stmt *a)
 	if (c->nr < 0 || a->nr < 0)
 		return NULL;
 	q = newStmt(mb, batRef, appendRef);
+//    int return_arg_id = getArg(q, 0);
+//    int input_type = getVarType(mb, a -> nr);
+//    setVarType(mb, return_arg_id, newBatType(input_type));
 	q = pushArgument(mb, q, c->nr);
 	q = pushArgument(mb, q, a->nr);
 	q = pushBit(mb, q, TRUE);
@@ -3126,6 +3130,7 @@ stmt_append(backend *be, stmt *c, stmt *a)
 		s->key = c->key;
 		s->nr = getDestVar(q);
 		s->q = q;
+        s->transpose_header = c->transpose_header ? c -> transpose_header : a -> transpose_header;
 		return s;
 	}
 	return NULL;

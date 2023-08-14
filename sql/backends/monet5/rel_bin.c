@@ -6506,11 +6506,6 @@ static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_st
     return result;
 }
 
-//static stmt *find_column_ref_exp_from_stmt(backend *be, stmt *subrel_stmt, list *exps)
-//{
-//    return NULL;
-//}
-
 static stmt *order_schema_bin(backend *be, stmt *subrel_stmts, list *order_schema_exps) {
     mvc *sql = be -> mvc;
     // orderby id stmt used for traverse, if it is NULL we know it is the first one
@@ -6565,7 +6560,7 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 	s = subrel_bin(be, rel, refs);
 	s = subrel_project(be, s, refs, rel);
 
-//    printFunction(stdout_wastream(), be->mb, 0, 23);
+    printFunction(stdout_wastream(), be->mb, 0, 23);
 
 	if (!s)
 		return NULL;

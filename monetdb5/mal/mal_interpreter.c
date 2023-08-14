@@ -610,17 +610,18 @@ str runMALsequence(Client cntxt, MalBlkPtr mb, int startpc,
 
 		if (garbageControl(pci)) {
 			for (i = 0; i < pci->argc; i++) {
-				int a = getArg(pci, i);
+//				int a = getArg(pci, i);
 
-				if (stk->stk[a].vtype == TYPE_bat && getEndScope(mb, a) == stkpc && isNotUsedIn(pci, i + 1, a))
-					garbage[i] = a;
-				else
-					garbage[i] = -1;
-
-                // Do not garbage collect the transposition results
-                if(strcmp(pci -> fcnname, "transpose") == 0 || strcmp(pci -> fcnname, "projection") == 0){
-                    garbage[i] = -1;
-                }
+//				if (stk->stk[a].vtype == TYPE_bat && getEndScope(mb, a) == stkpc && isNotUsedIn(pci, i + 1, a))
+//					garbage[i] = a;
+//				else
+//					garbage[i] = -1;
+//
+//                // Do not garbage collect the transposition results
+//                if((strcmp(pci -> fcnname, "transpose") == 0 || strcmp(pci -> fcnname, "projection") == 0)){
+//                    garbage[i] = -1;
+//                }
+                garbage[i] = -1;
 			}
 		}
 

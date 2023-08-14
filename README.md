@@ -24,3 +24,4 @@ Diagrams for simple sql query `select * from people`
 ### Notion pages
 
 [solution of integrating fully-fledged transposition](https://wax-elephant-c41.notion.site/Deal-with-transposition-in-all-situations-of-sql-operations-80b195c5337b48c8ba43740bff35962d?pvs=4)
+[transpose implementation jotdowns](https://wax-elephant-c41.notion.site/Approach-jotdowns-7b200e7bde9846b49adb9be7b49947f8?pvs=4)
