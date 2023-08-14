@@ -307,6 +307,7 @@ mal_export  const char *subsumRef;
 mal_export  const char *subuniformRef;
 mal_export  const char *sumRef;
 mal_export  const char *takeRef;
+mal_export  const char *excludeRef;
 mal_export  const char *thetajoinRef;
 mal_export  const char *thetaselectRef;
 mal_export  const char *tidRef;

@@ -306,6 +306,7 @@ const char *subsumRef;
 const char *subuniformRef;
 const char *sumRef;
 const char *takeRef;
+const char *excludeRef;
 const char *thetajoinRef;
 const char *thetaselectRef;
 const char *tidRef;
@@ -626,6 +627,7 @@ void optimizerInit(void)
 	subuniformRef= putName("subuniform");
 	sumRef = putName("sum");
 	takeRef= putName("take");
+    excludeRef = putName("exclude");
 	thetajoinRef = putName("thetajoin");
 	thetaselectRef = putName("thetaselect");
 	tidRef = putName("tid");

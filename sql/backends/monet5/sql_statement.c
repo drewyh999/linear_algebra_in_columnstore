@@ -2306,6 +2306,35 @@ stmt_left_project(backend *be, stmt *op1, stmt *op2, stmt *op3)
 	}
 	return NULL;
 }
+stmt *
+stmt_exclude(backend *be, stmt *op1, const char *cname) {
+    MalBlkPtr mb = be->mb;
+    InstrPtr q = NULL;
+
+    // Use bat.take to take the BAT with given cname
+    q = newStmt(mb, batRef, excludeRef);
+    q = pushStr(mb, q, cname);
+    q = pushArgument(mb, q, op1->nr);
+
+    if (q) {
+        stmt *s = stmt_create(be->mvc->sa, st_alias);
+        if (s == NULL) {
+            freeInstruction(q);
+            return NULL;
+        }
+
+        s->op1 = op1;
+        s->key = 0;
+        s->nrcols = 1;
+        s->nr = getDestVar(q);
+        s->q = q;
+        s->tname = op1->tname;
+        s->cname = TRANSPOSED_COLUMNS;
+        s->transpose_header = op1->transpose_header;
+        return s;
+    }
+    return NULL;
+}
 
 stmt *
 stmt_take(backend *be, stmt *op1, const char *cname) {
@@ -2316,6 +2345,17 @@ stmt_take(backend *be, stmt *op1, const char *cname) {
     q = newStmt(mb, batRef, takeRef);
     q = pushStr(mb, q, cname);
     q = pushArgument(mb, q, op1->nr);
+
+    // Give correct type to the return variable of bat.take
+    sql_subtype *transpose_application_t = tail_type(op1);
+    int return_arg_id = getArg(q, 0);
+
+    if(strcmp(cname, "C") == 0) {
+        setVarType(mb, return_arg_id, newBatType(TYPE_str));
+    }
+    else{
+        setVarType(mb, return_arg_id, newBatType(ATOMstorage(transpose_application_t->type->localtype)));
+    }
 
     if (q) {
         stmt *s = stmt_create(be->mvc->sa, st_alias);

@@ -5444,6 +5444,8 @@ static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_st
 
 static list * rel2bin_column_refs(backend *be, stmt *subrel_stmts, list *column_ref_exp_list);
 
+static list *separate_application_by_ordering(backend *be, list *ordering_schema_stmts, list *application_schema_stmts);
+
 static stmt *
 sql_delete_cascade_Fkeys(backend *be, sql_key *fk, stmt *ftids)
 {
@@ -6448,6 +6450,9 @@ static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list 
     list *application_schema_stmts = rel2bin_column_refs(be, subrel_stmts, application_schema);
     list *order_schema_stmts = rel2bin_column_refs(be, subrel_stmts, order_schema);
 
+    // Separate application schema if needed
+    application_schema_stmts = separate_application_by_ordering(be, order_schema_stmts, application_schema_stmts);
+
     // Use the sorted order schema id to project on the table data, which aligns all columns according to the order of order schema
     list *order_part_alignment_stmts = alignment_projection_bin(be, sorted_order_schema_stmt, order_schema_stmts);
     list *application_part_alignment_stmts = alignment_projection_bin(be, sorted_order_schema_stmt, application_schema_stmts);
@@ -6471,6 +6476,24 @@ static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list 
     result -> transpose_header = transposed_header_stmt;
 
     return result;
+}
+
+
+// Find out if the ordering schema comes from a transposed relation in application schema
+static list *
+separate_application_by_ordering(backend *be, list *ordering_schema_stmts, list *application_schema_stmts) {
+    stmt *ordering_stmt = ordering_schema_stmts -> h -> data;
+    const char *tname = ordering_stmt -> tname;
+    const char *cname = ordering_stmt -> cname;
+    for(node *n = application_schema_stmts -> h; n; n = n -> next){
+        stmt *ap_stmt = n -> data;
+        const char *ap_tname = ap_stmt -> tname;
+        const char *ap_cname = ap_stmt -> cname;
+        if(strcmp(TRANSPOSED_COLUMNS, ap_cname) == 0 && strcmp(ap_tname, tname) == 0){
+            n -> data = stmt_exclude(be, ap_stmt, cname);
+        }
+    }
+    return application_schema_stmts;
 }
 
 static list * rel2bin_column_refs(backend *be, stmt *subrel_stmts, list *column_ref_exp_list) {
@@ -6560,7 +6583,7 @@ output_rel_bin(backend *be, sql_rel *rel, int top)
 	s = subrel_bin(be, rel, refs);
 	s = subrel_project(be, s, refs, rel);
 
-    printFunction(stdout_wastream(), be->mb, 0, 23);
+//    printFunction(stdout_wastream(), be->mb, 0, 23);
 
 	if (!s)
 		return NULL;

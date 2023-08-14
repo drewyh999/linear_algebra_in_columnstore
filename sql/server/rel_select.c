@@ -6395,8 +6395,8 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     sql_rel *sub_rel = table_ref(query, relation_tree, table_ref_symbol, 0, NULL);
 
     // If there are already another transpose in the sub relation, we throw an error
-    if(rel_has_transpose(sub_rel))
-        return sql_error(query -> sql, 02, SQLSTATE(42000) "More than one transpose was nested\n");
+//    if(rel_has_transpose(sub_rel))
+//        return sql_error(query -> sql, 02, SQLSTATE(42000) "More than one transpose was nested\n");
 
     // Get list of expression (in the simplest occasion, the column references) of ordering schema
     list *ordering_exps = rel_ordering_schema_exps(query, &sub_rel, ordering_schema_symbols);

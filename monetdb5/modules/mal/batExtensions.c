@@ -298,6 +298,14 @@ CMDBATvacuum(bat *r, const bat *bid)
 	BBPunfix(b->batCacheid);
 	return MAL_SUCCEED;
 }
+static str
+CMDBATexclude(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci) {
+    (void) cntxt;
+    (void) mb;
+    (void) stk;
+    (void) pci;
+    return NULL;
+}
 
 static str
 CMDBATtake(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
@@ -354,6 +362,7 @@ mel_func batExtensions_init_funcs[] = {
  pattern("bat", "partition", CMDBATpartition, false, "Create a serie of slices over the BAT argument. The BUNs are distributed evenly.", args(1,2, batvarargany("",1),batargany("b",1))),
  pattern("bat", "partition", CMDBATpartition2, false, "Create the n-th slice over the BAT broken into several pieces.", args(1,4, batargany("",1),batargany("b",1),arg("pieces",int),arg("n",int))),
  pattern("bat", "take", CMDBATtake, false, "Take the corresponding BAT with given name in a BAT storing BAT ids", args(1, 3, batargany("b",0),arg("cname", str), batarg("array", bat))),
+ pattern("bat", "exclude", CMDBATexclude, false, "Return a BAT containing the BAT ids without the id of BAT of the given column name", args(1, 3, batarg("b",bat),arg("cname", str), batarg("array", bat))),
  command("bat", "imprints", CMDBATimprints, false, "", args(1,2, arg("",void),batarg("b",bte))),
  command("bat", "imprints", CMDBATimprints, false, "", args(1,2, arg("",void),batarg("b",sht))),
  command("bat", "imprints", CMDBATimprints, false, "", args(1,2, arg("",void),batarg("b",int))),
