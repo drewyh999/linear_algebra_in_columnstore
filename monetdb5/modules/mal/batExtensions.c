@@ -302,9 +302,30 @@ static str
 CMDBATexclude(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci) {
     (void) cntxt;
     (void) mb;
-    (void) stk;
-    (void) pci;
-    return NULL;
+    bat *bn = getArgReference_bat(stk, pci, 0);
+    BAT *input_bat_array = BATdescriptor(*getArgReference_bat(stk, pci, 2));
+    const char *cname = *getArgReference_str(stk, pci, 1);
+
+    BATiter input_i = bat_iterator(input_bat_array);
+    BUN input_size = input_bat_array -> batCount;
+
+    for(BUN i = 0;i < input_size;i ++){
+        bat bat_id = *(((int*) input_i.base) + i);
+        BAT *b = BATdescriptor(bat_id);
+        if(!b -> cname){
+            throw(MAL, "bat.exclude", "column info lost");
+        }
+        if(strcmp(b -> cname, cname) == 0){
+            if(BUNdelete(input_bat_array, i) != GDK_SUCCEED){
+                throw(MAL, "bat.exclude", "BUN delete not succeed");
+            }
+        }
+    }
+
+    *bn = input_bat_array -> batCacheid;
+    BBPkeepref(*bn);
+
+    return MAL_SUCCEED;
 }
 
 static str

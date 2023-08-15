@@ -634,36 +634,74 @@ CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     bat bid;
     unsigned char application_schema_type = 0;
     BAT *result_columns = NULL, *result_headers = NULL, *order_schema_bat = NULL, *application_bat = NULL;
+    order_schema_bat = BATdescriptor(*getArgReference_bat(stk, pci, 2));
 
     // Get number of application BATs. we use total number of arguments minus returned arguments minus the ordering schema, which is one
     int application_schema_column_len = pci -> argc - pci -> retc - 1;
-    BAT *application_schema_bats[application_schema_column_len];
 
-    // Third argument is the order schema bat
-    order_schema_bat = BATdescriptor(*getArgReference_bat(stk, pci, 2));
+    // Detect the BAT of BAT id in the input parameters
+    BUN n_bat_id = 0;
+    for(int i = 0;i < application_schema_column_len;i ++){
+        bid = *getArgReference_bat(stk, pci, 3 + i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype == TYPE_bat){
+            n_bat_id += application_bat -> batCount - 1;
+        }
+    }
+
+    // Initialize the array for all input parameters
+    BAT *application_schema_bats[application_schema_column_len + n_bat_id];
 
     // Get result header from order schema bat
     result_headers = BATtransposeheader(order_schema_bat);
 
     //Put all BATs into array and pass to gdk function for actual transposition
     // also check the BAT type at this time to make sure application schema is of same type
-    for(int i = 0;i < application_schema_column_len;i ++){
+    BUN array_i = 0;
+    int i = 0;
+    while(i < application_schema_column_len && array_i < application_schema_column_len + n_bat_id){
         bid = *getArgReference_bat(stk, pci, 3 + i);
         application_bat = BATdescriptor(bid);
-        // Initialize application schema type if not
-        if(application_schema_type == 0)
-            application_schema_type = application_bat -> ttype;
-        if(application_bat == NULL)
-            goto bailout;
-        if(application_bat -> ttype == TYPE_str){
-            throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_NOT_SUPPORT);
+        if(application_bat -> ttype != TYPE_bat) {
+            // Initialize application schema type if not
+            if (application_schema_type == 0)
+                application_schema_type = application_bat->ttype;
+            if (application_bat == NULL)
+                goto bailout;
+            if (application_bat->ttype == TYPE_str) {
+                throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_NOT_SUPPORT);
+            }
+            if (application_bat->ttype != application_schema_type) {
+                throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_CONFLICT);
+            }
+            application_schema_bats[array_i] = application_bat;
+            array_i ++;
         }
-        if(application_bat -> ttype != application_schema_type){
-            throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_CONFLICT);
+        // Put BATs from BAT ids into the array
+        else{
+            BATiter bi = bat_iterator(application_bat);
+            BUN i_size = application_bat -> batCount;
+            BAT *inner_bat;
+            for(BUN j = 0;j < i_size;j ++){
+                bat inner_bat_id = *(((int *)bi.base) + j);
+                inner_bat = BATdescriptor(inner_bat_id);
+                if (application_schema_type == 0)
+                    application_schema_type = inner_bat->ttype;
+                if (inner_bat == NULL)
+                    goto bailout;
+                if (inner_bat->ttype == TYPE_str) {
+                    throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_NOT_SUPPORT);
+                }
+                if (inner_bat->ttype != application_schema_type) {
+                    throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_TRANSPOSE_TYPE_CONFLICT);
+                }
+                application_schema_bats[array_i] = inner_bat;
+                array_i ++;
+            }
         }
-        application_schema_bats[i] = application_bat;
+        i ++;
     }
-    result_columns = BATtranspose(result_headers, order_schema_bat, application_schema_bats, application_schema_column_len);
+    result_columns = BATtranspose(result_headers, order_schema_bat, application_schema_bats, application_schema_column_len + n_bat_id);
 
     if(!result_columns || !result_headers)
         goto bailout;
