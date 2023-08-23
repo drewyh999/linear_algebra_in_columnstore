@@ -320,6 +320,7 @@ const char *transposeRef;
 const char *transaction_releaseRef;
 const char *transaction_rollbackRef;
 const char *umaskRef;
+const char *matmulRef;
 const char *uniqueRef;
 const char *unlockRef;
 const char *unpackRef;
@@ -523,6 +524,7 @@ void optimizerInit(void)
     transposeRef = putName("transpose");
 	multicolumnRef = putName("multicolumn");
 	multiplexRef = putName("multiplex");
+    matmulRef = putName("matmul");
 	mvcRef = putName("mvc");
 	newRef = putName("new");
 	nextRef = putName("next");

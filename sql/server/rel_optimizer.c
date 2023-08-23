@@ -116,6 +116,7 @@ name_find_column( sql_rel *rel, const char *rname, const char *name, int pnr, sq
 	case op_left:
 	case op_right:
 	case op_full:
+    case op_matrix_multiplication:
 		/* first right (possible subquery) */
 		c = name_find_column( rel->r, rname, name, pnr, bt);
 		/* fall through */
@@ -1129,6 +1130,7 @@ rel_join_order(visitor *v, sql_rel *rel)
 	case op_inter:
 	case op_except:
 	case op_merge:
+    case op_matrix_multiplication:
 		rel->l = rel_join_order(v, rel->l);
 		rel->r = rel_join_order(v, rel->r);
 		break;
@@ -2347,6 +2349,7 @@ has_no_selectivity(mvc *sql, sql_rel *rel)
 	case op_update:
 	case op_delete:
 	case op_merge:
+    case op_matrix_multiplication:
 	case op_join:
 	case op_left:
 	case op_right:
@@ -6995,6 +6998,7 @@ rel_mark_used(mvc *sql, sql_rel *rel, int proj)
 	case op_semi:
 	case op_anti:
 	case op_merge:
+    case op_matrix_multiplication:
 		rel_exps_mark_used(sql->sa, rel, rel->l);
 		rel_exps_mark_used(sql->sa, rel, rel->r);
 		rel_mark_used(sql, rel->l, 0);
@@ -7098,6 +7102,7 @@ rel_remove_unused(mvc *sql, sql_rel *rel)
 	case op_semi:
 	case op_anti:
     case op_matrix_transpose:
+    case op_matrix_multiplication:
 		return rel;
 	case op_ddl:
 		if (rel->flag == ddl_output || rel->flag == ddl_create_seq || rel->flag == ddl_alter_seq || rel->flag == ddl_alter_table || rel->flag == ddl_create_table || rel->flag == ddl_create_view) {
@@ -7155,6 +7160,7 @@ rel_dce_refs(mvc *sql, sql_rel *rel, list *refs)
 	case op_semi:
 	case op_anti:
 	case op_merge:
+    case op_matrix_multiplication:
 
 		if (rel->l)
 			rel_dce_refs(sql, rel->l, refs);
@@ -7251,6 +7257,7 @@ rel_dce_down(mvc *sql, sql_rel *rel, int skip_proj)
 	case op_semi:
 	case op_anti:
 	case op_merge:
+    case op_matrix_multiplication:
 		if (rel->l)
 			rel->l = rel_dce_down(sql, rel->l, 0);
 		if (rel->r)
@@ -7350,6 +7357,7 @@ rel_add_projects(mvc *sql, sql_rel *rel)
 	case op_semi:
 	case op_anti:
 	case op_merge:
+    case op_matrix_multiplication:
 		if (rel->l)
 			rel->l = rel_add_projects(sql, rel->l);
 		if (rel->r)

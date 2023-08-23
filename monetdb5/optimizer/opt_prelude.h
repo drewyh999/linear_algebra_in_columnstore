@@ -201,6 +201,7 @@ mal_export  const char *mulRef;
 mal_export  const char *transposeRef;
 mal_export  const char *multicolumnRef;
 mal_export  const char *multiplexRef;
+mal_export  const char *matmulRef;
 mal_export  const char *mvcRef;
 mal_export  const char *newRef;
 mal_export  const char *nextRef;

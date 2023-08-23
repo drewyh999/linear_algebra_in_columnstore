@@ -33,6 +33,7 @@ has_remote_or_replica( sql_rel *rel )
 	case op_left:
 	case op_right:
 	case op_full:
+    case op_matrix_multiplication:
 
 	case op_semi:
 	case op_anti:
@@ -230,6 +231,7 @@ rel_rewrite_remote(visitor *v, sql_rel *rel)
 	case op_left:
 	case op_right:
 	case op_full:
+    case op_matrix_multiplication:
 
 	case op_semi:
 	case op_anti:

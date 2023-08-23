@@ -35,6 +35,8 @@ static list *rel_application_schema_exps(sql_query *query, sql_rel *relation_tre
 
 static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *column_symbol_list);
 
+static sql_rel* rel_matrix_multiplication_query(sql_query *query, sql_rel *relation_tree, symbol *matmul_symbol);
+
 static symbdata get_element_by_index(dlist *list_in, int index){
     dnode *res = list_in -> h;
     for(int i = 0;i < index;i ++){
@@ -70,6 +72,7 @@ rel_table_projections( mvc *sql, sql_rel *rel, char *tname, int level )
 	case op_left:
 	case op_right:
 	case op_full:
+    case op_matrix_multiplication:
 		exps = rel_table_projections( sql, rel->l, tname, level+1);
 		if (exps)
 			return exps;
@@ -357,6 +360,13 @@ query_exp_optname(sql_query *query, sql_rel *r, symbol *q, list *refs)
         case SQL_TRANSPOSE:
         {
             sql_rel *tq =  rel_matrix_transpose_query(query, r, q);
+            if (!tq)
+                return NULL;
+            return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
+        }
+        case SQL_MATMUL:
+        {
+            sql_rel *tq = rel_matrix_multiplication_query(query, r, q);
             if (!tq)
                 return NULL;
             return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
@@ -6099,8 +6109,6 @@ rel_joinquery_(sql_query *query, sql_rel *rel, symbol *tab1, int natural, jt joi
 	if (inner && is_outerjoin(inner->op))
 		set_processed(inner);
 	set_processed(rel);
-//    printf("rel_select join has rel:\n");
-//    _rel_print(sql, rel);
 	query_processed(query);
 	return rel;
 }
@@ -6209,15 +6217,6 @@ rel_selects(sql_query *query, symbol *s)
 			ret = rel_select_with_into(query, s);
 		} else {
 			ret = rel_subquery(query, NULL, s, ek);
-//            if(ret && sn -> from){
-//                if((sql_table*)ret->l){
-//            if(strcmp(((sql_table*)rel->l)->base.name,"people") == 0){
-//                printf("after rel_query, now the rel exp length is %d\n", list_length(rel->exps));
-//            }
-//                    printf("table name is %s ", ((sql_table*)ret->l) -> base.name);
-//                    printf("exp length is %d\n", list_length(ret->l));
-//                }
-//            }
 			sql->type = Q_TABLE;
 		}
 	}	break;
@@ -6377,6 +6376,17 @@ rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree, dlist *colum
     return result;
 }
 
+static sql_subtype *
+exps_same_type(list *application_exps){
+    sql_subtype *first_exp_type = &(((sql_exp *)(application_exps -> h -> data)) -> tpe);
+    for(node *n = application_exps -> h -> next; n; n = n -> next){
+        sql_subtype current_type = ((sql_exp *)(n -> data)) -> tpe;
+        if(subtype_cmp(first_exp_type, &current_type) != 0){
+            return NULL;
+        }
+    }
+    return first_exp_type;
+}
 
 
 static sql_rel *
@@ -6388,15 +6398,9 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     symbol *table_ref_symbol = get_element_by_index(data_list, 0).sym;
     dlist *ordering_schema_symbols = get_element_by_index(data_list, 1).lval;
     symbol *transpose_alias_symbol = get_element_by_index(data_list, 2).sym;
-    if(!ordering_schema_symbols)
-        return sql_error(query -> sql, 02, SQLSTATE(42000) "No ordering schema specified\n");
 
     // Resolve possible sub queries in table_ref, if it is simply a table reference, it will also be processed here
-    sql_rel *sub_rel = table_ref(query, relation_tree, table_ref_symbol, 0, NULL);
-
-    // If there are already another transpose in the sub relation, we throw an error
-//    if(rel_has_transpose(sub_rel))
-//        return sql_error(query -> sql, 02, SQLSTATE(42000) "More than one transpose was nested\n");
+    sql_rel *sub_rel = table_ref(query, NULL, table_ref_symbol, 0, NULL);
 
     // Get list of expression (in the simplest occasion, the column references) of ordering schema
     list *ordering_exps = rel_ordering_schema_exps(query, &sub_rel, ordering_schema_symbols);
@@ -6405,21 +6409,18 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     list *application_exps = rel_application_schema_exps(query, sub_rel, ordering_exps);
 
     // Check if all the columns in the application schema has the same underlying type
-    sql_subtype first_exp_type = ((sql_exp *)(application_exps -> h -> data)) -> tpe;
-
-    for(node *n = application_exps -> h -> next; n; n = n -> next){
-        sql_subtype current_type = ((sql_exp *)(n -> data)) -> tpe;
-        if(subtype_cmp(&first_exp_type, &current_type) != 0){
-            return sql_error(query -> sql, 02, SQLSTATE(42000) "Cannot have different types in application schema");
-        }
+    sql_subtype *first_exp_type = exps_same_type(application_exps);
+    if(first_exp_type == NULL){
+            return sql_error(query -> sql, 02, SQLSTATE(42000) "Transpose: Cannot have different types in application schema");
     }
+
 
     // Construct the matrix transpose node in sql_rel tree, l points to the subtree to table references,
     // r points to the ordering schema expressions, exps contains application schema expressions
     char *alias_name = transpose_alias_symbol->data.lval->h->data.sval;
     relation_tree = rel_matrix_transpose(sa, sub_rel, ordering_exps, application_exps, alias_name);
 
-    sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, &first_exp_type, 3, 1, 0, 0);
+    sql_exp *placeholder_expression = exp_column(sa, alias_name, TRANSPOSED_COLUMNS, first_exp_type, 3, 1, 0, 0);
 
     list *projection_list = new_exp_list(sa);
 
@@ -6428,4 +6429,48 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     relation_tree = rel_project(sa, relation_tree, projection_list);
 
     return relation_tree;
+}
+
+sql_rel *rel_matrix_multiplication_query(sql_query *query, sql_rel *relation_tree, symbol *matmul_symbol) {
+    sql_allocator *sa = query -> sql ->sa;
+
+    // Fetch symbol tree information
+    dlist *data_list = matmul_symbol -> data.lval;
+    symbol *table_ref_l_symbol = get_element_by_index(data_list, 0).sym;
+    dlist *ordering_schema_l_symbols = get_element_by_index(data_list, 1).lval;
+    symbol *table_ref_r_symbol = get_element_by_index(data_list, 2).sym;
+    dlist *ordering_schema_r_symbols = get_element_by_index(data_list, 3).lval;
+
+    // Resolve left and right table reference
+    sql_rel *sub_rel_l = table_ref(query, NULL, table_ref_l_symbol, 0, NULL);
+    sql_rel *sub_rel_r = table_ref(query, NULL, table_ref_r_symbol, 0, NULL);
+
+    // Resolve ordering schemas for left and right matrix
+    list *os_exps_l = rel_ordering_schema_exps(query, &sub_rel_l, ordering_schema_l_symbols);
+    list *os_exps_r = rel_ordering_schema_exps(query, &sub_rel_r, ordering_schema_r_symbols);
+
+    // Get application schema according ordering schemas
+    list *as_exps_l = rel_application_schema_exps(query, sub_rel_l, os_exps_l);
+    list *as_exps_r = rel_application_schema_exps(query, sub_rel_r, os_exps_r);
+
+    // Check application part has the same type
+    if(exps_same_type(as_exps_l) == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix multiplication: left relation application schema has different type");
+    }
+    if(exps_same_type(as_exps_r) == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix multiplication: right relation application schema has different type");
+    }
+
+    // Construct mmu node
+    relation_tree = rel_matrix_multiplication(sa, sub_rel_l, sub_rel_r, os_exps_l, os_exps_r,  as_exps_l, as_exps_r);
+
+    // According to RMA definition, result of MMU has schema of the ordering schema from left relation and application schema
+    // from the right relation
+    list *projection_list = new_exp_list(sa);
+    projection_list = list_concat(projection_list, os_exps_l);
+    projection_list = list_concat(projection_list, as_exps_r);
+    relation_tree = rel_project(sa, relation_tree, projection_list);
+
+    return relation_tree;
+
 }

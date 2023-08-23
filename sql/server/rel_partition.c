@@ -70,6 +70,7 @@ find_basetables(mvc *sql, sql_rel *rel, list *tables )
 	case op_update:
 	case op_delete:
 	case op_merge:
+    case op_matrix_multiplication:
 		if (rel->l)
 			find_basetables(sql, rel->l, tables);
 		if (rel->r)
@@ -174,7 +175,7 @@ rel_partition(mvc *sql, sql_rel *rel)
 	} else if (is_insert(rel->op) || is_update(rel->op) || is_delete(rel->op) || is_truncate(rel->op)) {
 		if (rel->r && rel->card <= CARD_AGGR)
 			rel_partition(sql, rel->r);
-	} else if (is_join(rel->op)) {
+	} else if (is_join(rel->op) || is_mmu(rel->op)) {
 		if (has_groupby(rel->l) || has_groupby(rel->r)) {
 			if (rel->l)
 				rel_partition(sql, rel->l);

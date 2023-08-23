@@ -624,6 +624,124 @@ CMDbatADD(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 						 calctype, 0, "batcalc.add_noerror");
 }
 
+// bat[any]... := batcalc.matmul(size_left:lng, size_right:lng, ordering schema left, ap_left, ap_right)
+static str
+CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
+    (void) cntxt;
+    (void) mb;
+    BAT *result_columns = NULL;
+    int retc = pci -> retc;
+    int argc = pci -> argc;
+    int input_arg_index = argc - retc - 1;
+    int input_bat_arg_index = input_arg_index + 3;
+    long left_size = *getArgReference_lng(stk, pci, input_arg_index);
+    long right_size = *getArgReference_lng(stk, pci, input_arg_index + 1);
+
+    // Return the ordering schema directly
+    *getArgReference_bat(stk, pci, 0) = *getArgReference_bat(stk, pci, input_arg_index + 2);
+    (void) right_size;
+
+    // Detect BAT arrays for both side of mmu
+    long n_bat_id_left = 0;
+    long n_bat_id_right = 0;
+    (void) n_bat_id_right;
+    bat bid;
+    BAT *application_bat;
+    for(long i = input_bat_arg_index;i < input_bat_arg_index + left_size;i ++){
+        bid = *getArgReference_bat(stk, pci, i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype == TYPE_bat){
+            n_bat_id_left += application_bat -> batCount - 1;
+        }
+    }
+    for(long i = input_bat_arg_index + left_size;i < argc;i ++){
+        bid = *getArgReference_bat(stk, pci, i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype == TYPE_bat){
+            n_bat_id_left += application_bat -> batCount - 1;
+        }
+    }
+
+    // Put input BATs into arrays for both sides
+    BAT *input_bats_left[left_size + n_bat_id_left];
+    BAT *input_bats_right[right_size + n_bat_id_right];
+
+    long array_i = 0;
+    int i = 0;
+    while(i < input_bat_arg_index + left_size && array_i < input_bat_arg_index + left_size ){
+        bid = *getArgReference_bat(stk, pci, input_arg_index + i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype != TYPE_bat) {
+            if (application_bat == NULL)
+                goto bailout;
+            input_bats_left[array_i] = application_bat;
+            array_i ++;
+        }
+        // Put BATs from BAT ids into the array
+        else{
+            BATiter bi = bat_iterator(application_bat);
+            BUN i_size = application_bat -> batCount;
+            BAT *inner_bat;
+            for(BUN j = 0;j < i_size;j ++){
+                bat inner_bat_id = *(((int *)bi.base) + j);
+                inner_bat = BATdescriptor(inner_bat_id);
+                if (inner_bat == NULL)
+                    goto bailout;
+                input_bats_left[array_i] = inner_bat;
+                array_i ++;
+            }
+        }
+        i ++;
+    }
+
+    array_i = 0;
+    while(i < argc && array_i < right_size + n_bat_id_right){
+        bid = *getArgReference_bat(stk, pci, input_arg_index + i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype != TYPE_bat) {
+            if (application_bat == NULL)
+                goto bailout;
+            input_bats_left[array_i] = application_bat;
+            array_i ++;
+        }
+            // Put BATs from BAT ids into the array
+        else{
+            BATiter bi = bat_iterator(application_bat);
+            BUN i_size = application_bat -> batCount;
+            BAT *inner_bat;
+            for(BUN j = 0;j < i_size;j ++){
+                bat inner_bat_id = *(((int *)bi.base) + j);
+                inner_bat = BATdescriptor(inner_bat_id);
+                if (inner_bat == NULL)
+                    goto bailout;
+                input_bats_left[array_i] = inner_bat;
+                array_i ++;
+            }
+        }
+        i ++;
+    }
+
+    BAT *res_arr = BATmatmul(left_size + n_bat_id_left, right_size + n_bat_id_right, input_bats_left, input_bats_right);
+
+    // TODO Deal with the situation where we need to re-assemble the BAT into BAT id array
+
+    BATiter res_i = bat_iterator(res_arr);
+
+    for(BUN idx = 0;idx < res_arr -> batCount;idx ++){
+        bat res_bat_id = *(((int *)res_i.base) + idx);
+        BBPkeepref(res_bat_id);
+        *getArgReference_bat(stk,pci,idx + 1) = res_bat_id;
+    }
+
+    return MAL_SUCCEED;
+
+    bailout:
+    if (result_columns)
+        BBPunfix(result_columns->batCacheid);
+
+    throw(MAL, "batcalc.matmul", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
+}
+
 
 // Function signature looks like:
 // returned_columns:bat[:BAT], returned_headers:bat[:str] transpose(ordering schema:bat[:any], application schema any bats...)
@@ -717,7 +835,7 @@ bailout:
     if (result_headers)
         BBPunfix(result_headers->batCacheid);
 
-    throw(MAL, "matrix transpose", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
+    throw(MAL, "batcalc.transpose", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
 }
 
 static str
@@ -2269,6 +2387,7 @@ static mel_func batcalc_init_funcs[] = {
  pattern("batcalc", "transpose", CMDbatTRANSPOSE,false, "Return a BAT containing the ids of the BATs after transposition and a BAT containing the headers of the columns after transposition,First argument should be the ordering schema column", args(2,3,
                                                                                                                                                                                                                                                         batarg("", bat),
                                                                                                                                                                                                                                                         batarg("", str) ,batvarargany("bat_in", 0))),
+ pattern("batcalc", "matmul", CMDbatMATMUL,false, "Return the results of matrix multiplication", args(1,4, batvarargany("bat_out", 0), arg("", lng), arg("", lng), batvarargany("", 0))),
 
 
  pattern("batmmath", "fmod", CMDbatMODsignal, false, "", args(1,3, batarg("",dbl),batarg("x",dbl),arg("y",dbl))),

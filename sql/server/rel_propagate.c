@@ -558,6 +558,7 @@ rel_change_base_table(mvc* sql, sql_rel* rel, sql_table* oldt, sql_table* newt)
 		case op_update:
 		case op_delete:
 		case op_merge:
+        case op_matrix_multiplication:
 			if (rel->l)
 				rel->l = rel_change_base_table(sql, rel->l, oldt, newt);
 			if (rel->r)

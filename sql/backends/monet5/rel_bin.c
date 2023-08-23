@@ -408,7 +408,7 @@ subrel_project( backend *be, stmt *s, list *refs, sql_rel *rel)
 	for(node *n = s->op4.lval->h; n; n = n->next) {
 		stmt *c = n->data;
 
-		assert(c->type == st_alias || (c->type == st_join && c->flag == cmp_project) || c->type == st_bat || c->type == st_idxbat || c->type == st_single || c -> type == st_result);
+		assert(c->type == st_alias || (c->type == st_join && c->flag == cmp_project) || c->type == st_bat || c->type == st_idxbat || c->type == st_single || c -> type == st_result || c -> type == st_mmu_result);
 		if (c->type != st_alias) {
 			c = stmt_project(be, cand, c);
 		} else if (c->op1->type == st_mirror && is_tid_chain(cand)) { /* alias with mirror (ie full row ids) */
@@ -1983,6 +1983,7 @@ rel2bin_args(backend *be, sql_rel *rel, list *args)
 	case op_inter:
 	case op_except:
 	case op_merge:
+    case op_matrix_multiplication:
 		args = rel2bin_args(be, rel->l, args);
 		args = rel2bin_args(be, rel->r, args);
 		break;
@@ -5434,13 +5435,15 @@ sql_delete_triggers(backend *be, sql_table *t, stmt *tids, stmt **deleted_cols, 
 
 static stmt * sql_delete(backend *be, sql_table *t, stmt *rows);
 
+static stmt *rel2bin_matrix_multiplication(backend *be, sql_rel *relation_tree, list *refs);
+
 static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list *refs);
 
-static stmt *order_schema_bin(backend *be, stmt *subrel_stmts, list *order_schema_exps);
+static stmt *sort_by_order_schema_bin(backend *be, stmt *subrel_stmts, list *order_schema_exps);
 
 //static stmt *find_column_ref_exp_from_stmt(backend *be, stmt *subrel_stmt, list *exps);
 
-static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_stmt, list *column_list);
+static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_stmt, list *column_list_stmts);
 
 static list * rel2bin_column_refs(backend *be, stmt *subrel_stmts, list *column_ref_exp_list);
 
@@ -6414,6 +6417,10 @@ subrel_bin(backend *be, sql_rel *rel, list *refs)
         s = rel2bin_matrix_transpose(be, rel, refs);
         sql->type = Q_TABLE;
         break;
+    case op_matrix_multiplication:
+        s = rel2bin_matrix_multiplication(be, rel, refs);
+        sql->type = Q_TABLE;
+        break;
 	case op_truncate:
 		s = rel2bin_truncate(be, rel);
 		if (sql->type == Q_TABLE)
@@ -6434,6 +6441,61 @@ subrel_bin(backend *be, sql_rel *rel, list *refs)
 	}
 	return s;
 }
+static stmt *rel2bin_matrix_multiplication(backend *be, sql_rel *relation_tree, list *refs){
+    stmt *l = subrel_bin(be, relation_tree -> l, refs);
+    l = subrel_project(be, l, NULL, relation_tree);
+    stmt *r = subrel_bin(be, relation_tree -> r, refs);
+    r = subrel_project(be, r, NULL, relation_tree);
+    assert(l && r);
+
+    list *os_l = relation_tree -> os_l;
+    list *os_r = relation_tree -> os_r;
+    list *as_l = relation_tree -> as_l;
+    list *as_r = relation_tree -> as_r;
+
+    // Generate ordered oid for l and r
+    stmt *sorted_os_l = sort_by_order_schema_bin(be, l, os_l);
+    stmt *sorted_os_r = sort_by_order_schema_bin(be, r, os_r);
+
+    // Find application schema and ordering schema statements from subrels for both l and r
+    list *os_stmt_l = rel2bin_column_refs(be, l, os_l);
+    list *os_stmt_r = rel2bin_column_refs(be, r, os_r);
+    list *as_stmt_l = rel2bin_column_refs(be, l, as_l);
+    list *as_stmt_r = rel2bin_column_refs(be, r, as_r);
+
+    // Separate application and ordering schema if needed
+    as_stmt_l = separate_application_by_ordering(be, os_stmt_l, as_stmt_l);
+    as_stmt_r = separate_application_by_ordering(be, os_stmt_r, as_stmt_r);
+
+    // Apply sorted oid on l and r
+    list *op_aligned_stmts_l = alignment_projection_bin(be, sorted_os_l, os_stmt_l);
+    list *ap_aligned_stmts_l = alignment_projection_bin(be, sorted_os_l, as_stmt_l);
+    list *ap_aligned_stmts_r = alignment_projection_bin(be, sorted_os_r, as_stmt_r);
+
+    stmt *mmu_stmt = stmt_matrix_multiplication(be, op_aligned_stmts_l,ap_aligned_stmts_l, ap_aligned_stmts_r);
+
+    list *result_list = sa_list(be -> mvc -> sa);
+
+    // Projection on result of mmu for later references
+    int ret_index = 0;
+    stmt *input;
+    stmt *s;
+    for(node *n = op_aligned_stmts_l -> h; n; n = n -> next, ret_index ++){
+        input = n -> data;
+        s = stmt_result3(be, mmu_stmt, input,ret_index);
+        list_append(result_list, s);
+    }
+    for(node *n = ap_aligned_stmts_r -> h; n; n = n -> next, ret_index ++){
+        input = n -> data;
+        s = stmt_result3(be, mmu_stmt, input,ret_index);
+        list_append(result_list, s);
+    }
+
+
+    stmt *result = stmt_list(be, result_list);
+
+    return result;
+}
 
 static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list *refs) {
     stmt *subrel_stmts = subrel_bin(be, relation_tree -> l, refs);
@@ -6444,7 +6506,7 @@ static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list 
     list *application_schema = relation_tree -> exps;
 
     // Generate order schema index after sorting
-    stmt *sorted_order_schema_stmt = order_schema_bin(be, subrel_stmts, order_schema);
+    stmt *sorted_order_schema_stmt = sort_by_order_schema_bin(be, subrel_stmts, order_schema);
 
     // Find application and order schema projection in subrel stmts for transpose so that the MAL knows which column to transpose
     list *application_schema_stmts = rel2bin_column_refs(be, subrel_stmts, application_schema);
@@ -6465,7 +6527,7 @@ static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list 
     stmt *transposed_columns_stmt = stmt_result2(be, transpose_stmt, 0);
     stmt *transposed_header_stmt = stmt_result2(be, transpose_stmt, 1);
     // Alias the transpose header as $H$ for packing function to identify and correctly pack results
-    transposed_header_stmt = stmt_alias(be, transposed_header_stmt, relation_tree -> transpose_alias, "$H$");
+    transposed_header_stmt = stmt_alias(be, transposed_header_stmt, relation_tree -> transpose_alias, TRANSPOSED_COLUMN_HEADER);
     transposed_columns_stmt -> transpose_header = transposed_header_stmt;
     transpose_stmt -> transpose_header = transposed_header_stmt;
 
@@ -6514,13 +6576,13 @@ static list * rel2bin_column_refs(backend *be, stmt *subrel_stmts, list *column_
     return result;
 }
 
-static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_stmt, list *column_list) {
+static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_stmt, list *column_list_stmts) {
     mvc *sql = be -> mvc;
 
     list *result = sa_list(sql -> sa);
 
     // Project
-    for(node *n = column_list -> h; n; n = n -> next){
+    for(node *n = column_list_stmts -> h; n; n = n -> next){
         stmt *column_stmt = n -> data;
         stmt *aligned_column_stmt = stmt_project(be, sorted_order_schema_stmt, column_stmt);
         list_append(result, aligned_column_stmt);
@@ -6529,7 +6591,7 @@ static list * alignment_projection_bin(backend *be, stmt *sorted_order_schema_st
     return result;
 }
 
-static stmt *order_schema_bin(backend *be, stmt *subrel_stmts, list *order_schema_exps) {
+static stmt *sort_by_order_schema_bin(backend *be, stmt *subrel_stmts, list *order_schema_exps) {
     mvc *sql = be -> mvc;
     // orderby id stmt used for traverse, if it is NULL we know it is the first one
     stmt *orderby_ids = NULL;

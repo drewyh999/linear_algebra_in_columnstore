@@ -97,6 +97,7 @@ typedef enum stmt_type {
 	/* used internally only */
 	st_list,
     st_transpose_list,
+    st_mmu_result,
 
 	/* flow control statements */
 	st_cond,
@@ -191,6 +192,7 @@ extern stmt *stmt_atom_lng_nil(backend *be);
 extern stmt *stmt_bool(backend *be, int b);
 extern stmt *stmt_take(backend *be, stmt *op1, const char *cname);
 extern stmt *stmt_result2(backend *be, stmt *s, int nr);
+extern stmt *stmt_result3(backend *be, stmt *s,stmt *arg, int nr);
 extern stmt *stmt_exclude(backend *be, stmt *op1, const char *cname);
 
 extern stmt *stmt_uselect(backend *be, stmt *op1, stmt *op2, comp_type cmptype, stmt *sub, int anti, int is_semantics);
@@ -277,5 +279,5 @@ extern stmt *const_column(backend *ba, stmt *val);
 extern stmt *stmt_fetch(backend *ba, stmt *val);
 
 extern stmt *stmt_matrix_transpose(backend *be, list *order_alignment_stmt, list *application_alignment_stmt, const char *transpose_alias);
-
+extern stmt *stmt_matrix_multiplication(backend *be, list *op_aligned_stmts_l, list *ap_aligned_stmts_l, list *ap_aligned_stmts_r);
 #endif /* _SQL_STATEMENT_H_ */

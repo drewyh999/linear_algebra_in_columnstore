@@ -169,11 +169,11 @@ list_append_node(list *l, node *n)
 	return l;
 }
 
-// Concatenate two list
+// Concatenate two list's data
 list *
 list_concat(list *l, list *r){
     for(node *n = r -> h; n; n = n -> next){
-        list_append_node(l, n);
+        list_append(l, n -> data);
     }
     return l;
 }

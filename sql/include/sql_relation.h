@@ -170,7 +170,8 @@ typedef enum operator_type {
 	op_delete,	/* delete(l=table, r delete expression) */
 	op_truncate, /* truncate(l=table) */
 	op_merge,
-    op_matrix_transpose
+    op_matrix_transpose,
+    op_matrix_multiplication
 } operator_type;
 
 #define is_atom(et) 		(et == e_atom)
@@ -214,6 +215,7 @@ typedef enum operator_type {
 #define is_truncate(op) 	(op == op_truncate)
 #define is_merge(op) 		(op == op_merge)
 #define is_matrix_transpose(op) (op == op_matrix_transpose)
+#define is_mmu(op) (op == op_matrix_multiplication)
 
 /* ZERO on empty sets, needed for sum (of counts)). */
 #define zero_if_empty(e) 	((e)->zero_if_empty)
@@ -283,6 +285,10 @@ typedef struct relation {
 	void *l;
 	void *r;
 	list *exps;
+    list *os_l; /* exps list for binary matrix operations */
+    list *os_r;
+    list *as_l;
+    list *as_r;
 	int nrcols;	/* nr of cols */
 	unsigned int
 	 flag:16,

@@ -1009,6 +1009,30 @@ stmt_mirror(backend *be, stmt *s)
 	return NULL;
 }
 
+// Same with stmt result 2, only the statement created is st_mmu_result
+stmt *
+stmt_result3(backend *be, stmt *s, stmt *arg,int nr) {
+    stmt *ns;
+
+
+    ns = stmt_create(be->mvc->sa, st_mmu_result);
+    if(!ns) {
+        return NULL;
+    }
+    if (nr >= 0) {
+        int v = getArg(s->q, nr);
+
+        assert(s->q->retc > nr);
+        ns->nr = v;
+    }
+
+    ns->op4.stval = arg;
+    ns->flag = nr;
+    ns->nrcols = arg->nrcols;
+    ns->cname = arg->cname;
+    ns->tname = arg->tname;
+    return ns;
+}
 // Similar to stmt_result but does not check the op1's nr
 stmt *
 stmt_result2(backend *be, stmt *s, int nr)
@@ -4073,19 +4097,17 @@ stmt_matrix_transpose(backend *be, list *order_alignment_stmts, list *applicatio
     InstrPtr transpose_instruction = newStmtArgs(mb, batcalcRef, transposeRef, order_alignment_stmts->cnt + application_alignment_stmts -> cnt );
 
     stmt *order_alignment_stmt = ((stmt *)(order_alignment_stmts -> h -> data));
-    InstrPtr order_alignment_instr = order_alignment_stmt -> q;
     // push returns, first returning parameter should be the transposed columns and second should be headers
     int return_arg_id = getArg(transpose_instruction, 0);
     setVarType(mb, return_arg_id, newBatType(TYPE_bat));
     setVarFixed(mb, return_arg_id);
     transpose_instruction = pushReturn(mb, transpose_instruction, newTmpVariable(mb ,newBatType(TYPE_str)));
 
-    transpose_instruction = pushArgument(mb, transpose_instruction, getDestVar(order_alignment_instr));
+    transpose_instruction = pushArgument(mb, transpose_instruction, order_alignment_stmt -> nr);
 
     for(node *n = application_alignment_stmts -> h; n; n = n -> next){
-        stmt *application_alignment_stmt = ((stmt *)(n -> data));
-        InstrPtr application_alignment_instr = application_alignment_stmt -> q;
-        transpose_instruction = pushArgument(mb, transpose_instruction, getDestVar(application_alignment_instr));
+        stmt *application_alignment_stmt = n -> data;
+        transpose_instruction = pushArgument(mb, transpose_instruction, application_alignment_stmt -> nr);
     }
 
     stmt *s = stmt_create(sql -> sa, st_transpose_list);
@@ -4102,6 +4124,64 @@ stmt_matrix_transpose(backend *be, list *order_alignment_stmts, list *applicatio
     }
 
     return NULL;
+}
+
+stmt *
+stmt_matrix_multiplication(backend *be, list *op_aligned_stmts_l, list *ap_aligned_stmts_l, list *ap_aligned_stmts_r){
+    mvc *sql = be -> mvc;
+    MalBlkPtr mb = be -> mb;
+    int argc = 2 * op_aligned_stmts_l -> cnt + ap_aligned_stmts_l -> cnt + 2 * ap_aligned_stmts_r -> cnt + 2;
+    InstrPtr mmu_instruction = newStmtArgs(mb, batcalcRef, matmulRef, argc);
+
+    // Set returning ordering schema type
+    stmt *os_l = op_aligned_stmts_l -> h -> data;
+    sql_subtype *os_l_type = tail_type(os_l);
+    int return_arg_id = getArg(mmu_instruction, 0);
+    setVarType(mb, return_arg_id, newBatType(os_l_type->type->localtype));
+
+    // Push returns
+    for(node *n = ap_aligned_stmts_r -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmu_instruction = pushReturn(mb, mmu_instruction, newTmpVariable(mb, newBatType(tail_type(s) -> type -> localtype)));
+    }
+
+    // Push size args
+    int left_size = ap_aligned_stmts_l -> cnt;
+    int right_size = ap_aligned_stmts_r -> cnt;
+    mmu_instruction = pushLng(mb, mmu_instruction, left_size);
+    mmu_instruction = pushLng(mb, mmu_instruction, right_size);
+
+    // Push BATs args we only push ordering schema of the left relation and them application part of both side
+    for(node *n = op_aligned_stmts_l -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmu_instruction = pushArgument(mb, mmu_instruction, s -> nr);
+    }
+    for(node *n = ap_aligned_stmts_l -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmu_instruction = pushArgument(mb, mmu_instruction, s -> nr);
+    }
+    for(node *n = ap_aligned_stmts_r -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmu_instruction = pushArgument(mb, mmu_instruction, s -> nr);
+    }
+
+    stmt *s = stmt_create(sql -> sa, st_list);
+    list *arg_stmt_list = sa_list(sql -> sa);
+    arg_stmt_list = list_concat(arg_stmt_list, op_aligned_stmts_l);
+    arg_stmt_list = list_concat(arg_stmt_list, ap_aligned_stmts_l);
+    arg_stmt_list = list_concat(arg_stmt_list, ap_aligned_stmts_r);
+
+    if(s){
+        s -> op4.lval = arg_stmt_list;
+        s -> nr = getDestVar(mmu_instruction);
+        s -> q = mmu_instruction;
+        // For the cname and name of these stmt after transposition, we still give it the $ as the column name
+        // so that operations above transpose can use it to identify transposed columns
+        s -> nrcols = 2;
+        return s;
+    }
+    return NULL;
+
 }
 
 sql_subtype *
@@ -4138,6 +4218,9 @@ tail_type(stmt *st)
 			continue;
         case st_transpose_list:
             st = st->op4.lval->t->data;
+            continue;
+        case st_mmu_result:
+            st = st->op4.stval;
             continue;
 		case st_bat:
 			return &st->op4.cval->type;

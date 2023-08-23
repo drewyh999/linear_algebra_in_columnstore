@@ -519,7 +519,7 @@ scanner_init_keywords(void)
 
     // Keywords for matrix operation
     failed += keywords_insert("TRA", TRANSPOSE);
-    failed += keywords_insert("MATMUL", MATRIX_MULTIPLICATION);
+    failed += keywords_insert("MMU", MATRIX_MULTIPLICATION);
 
 	return failed;
 }

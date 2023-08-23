@@ -4396,6 +4396,28 @@ addstr_loop(BAT *b1, const char *l, BAT *b2, const char *r, BAT *bn, BATiter b1i
 	return BUN_NONE;
 }
 
+BAT *BATmatmul(long size_left, long size_right, BAT **left, BAT **right){
+    // Check shape
+    BUN right_bat_count = right[0] -> batCount;
+    if((unsigned long)size_left != right_bat_count){
+        GDKerror("batcalc transposition header creation failed. fail to append bat\n");
+        return NULL;
+    }
+    unsigned char type_left = left[0] -> ttype;
+//    unsigned char type_right = right[0] -> ttype;
+
+
+    BAT *res = COLnew(0, TYPE_bat, size_right, TRANSIENT);
+    for(long i = 0;i < size_right; i ++){
+        BAT *row = COLnew(0, type_left, size_left, TRANSIENT);
+        (void) row;
+    }
+
+    // calculate
+    // return result id in a BAT
+    return res;
+}
+
 BAT *BATtransposeheader(BAT *ordering_schema_bat){
     BAT *str_bat = BATconvert(ordering_schema_bat, NULL, TYPE_str, 1, 0, 0, 0);
     BAT *res = COLnew(0, TYPE_str, 0, TRANSIENT);

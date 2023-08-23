@@ -371,6 +371,8 @@ op2string(operator_type op)
 		return "ddl";
     case op_matrix_transpose:
         return "matrix transpose";
+    case op_matrix_multiplication:
+        return "matrix multiplication";
 	case op_project:
 		return "project";
 	case op_select:
@@ -507,6 +509,7 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 	case op_union:
 	case op_inter:
 	case op_except:
+    case op_matrix_multiplication:
 		r = "join";
 		if (rel->op == op_left)
 			r = "left outer join";
@@ -524,6 +527,8 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 			r = "intersect";
 		else if (rel->op == op_except)
 			r = "except";
+        else if (rel->op == op_matrix_multiplication)
+            r = "matrix multiplication";
 		else if (!rel->exps && rel->op == op_join)
 			r = "crossproduct";
 
@@ -551,7 +556,19 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 		}
 		print_indent(sql, fout, depth, decorate);
 		mnstr_printf(fout, ")");
-		exps_print(sql, fout, rel->exps, depth, refs, 1, 0);
+        if(rel->op != op_matrix_multiplication) {
+            exps_print(sql, fout, rel->exps, depth, refs, 1, 0);
+        }
+        else{
+            mnstr_printf(fout, " order schema left: ");
+            exps_print(sql, fout, rel -> os_l, depth, refs, 1, 0);
+            mnstr_printf(fout, " application schema left: ");
+            exps_print(sql, fout, rel -> as_l, depth, refs, 1, 0);
+            mnstr_printf(fout, " order schema right: ");
+            exps_print(sql, fout, rel -> os_r, depth, refs, 1, 0);
+            mnstr_printf(fout, " application schema right: ");
+            exps_print(sql, fout, rel -> as_r, depth, refs, 1, 0);
+        }
 		break;
 	case op_project:
 	case op_select:
@@ -696,6 +713,7 @@ rel_print_refs(mvc *sql, stream* fout, sql_rel *rel, int depth, list *refs, int 
 	case op_union:
 	case op_inter:
 	case op_except:
+    case op_matrix_multiplication:
 		if (rel->l)
 			rel_print_refs(sql, fout, rel->l, depth, refs, decorate);
 		if (rel->r)

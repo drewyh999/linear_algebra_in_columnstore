@@ -3408,6 +3408,15 @@ matrix_operation:
 				  append_symbol(l, $7);
 				  $$ = _symbol_create_list(SQL_TRANSPOSE, l);
     				}
+    | MATRIX_MULTIPLICATION '(' table_ref BY column_ref_commalist ',' table_ref BY column_ref_commalist ')'
+    				{
+    				  dlist *l = L();
+				  append_symbol(l, $3);
+				  append_list(l, $5);
+				  append_symbol(l, $7);
+				  append_list(l, $9);
+				  $$ = _symbol_create_list(SQL_MATMUL, l);
+    				}
  ;
 
 table_name:
@@ -6382,7 +6391,7 @@ char *token2string(tokens token)
 	SQL(XMLPI);
 	SQL(XMLTEXT);
 	SQL(TRANSPOSE);
-	SQL(MATRIX_MULTIPLICATION);
+	SQL(MATMUL);
 #define TR(TYPE) case TR_##TYPE : return #TYPE
 	TR(COMMIT);
 	TR(MODE);
