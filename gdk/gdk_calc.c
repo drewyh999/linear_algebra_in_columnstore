@@ -4396,25 +4396,56 @@ addstr_loop(BAT *b1, const char *l, BAT *b2, const char *r, BAT *bn, BATiter b1i
 	return BUN_NONE;
 }
 
-BAT *BATmatmul(long size_left, long size_right, BAT **left, BAT **right){
+BAT *BATcalcmatmul(long size_left, long size_right, BAT **left, BAT **right){
     // Check shape
     BUN right_bat_count = right[0] -> batCount;
+    BUN left_bat_count = left[0] -> batCount;
+    BAT *result[size_right];
     if((unsigned long)size_left != right_bat_count){
         GDKerror("batcalc transposition header creation failed. fail to append bat\n");
         return NULL;
     }
     unsigned char type_left = left[0] -> ttype;
-//    unsigned char type_right = right[0] -> ttype;
 
-
-    BAT *res = COLnew(0, TYPE_bat, size_right, TRANSIENT);
-    for(long i = 0;i < size_right; i ++){
-        BAT *row = COLnew(0, type_left, size_left, TRANSIENT);
-        (void) row;
+    // Initialize iterators for left matrix
+    BATiter left_iter[size_left];
+    for(long i = 0;i < size_left;i ++){
+        left_iter[i] = bat_iterator(left[i]);
     }
 
-    // calculate
-    // return result id in a BAT
+    // Initialize result BAT
+    BAT *res = COLnew(0, TYPE_bat, size_right, TRANSIENT);
+    for(long i = 0;i < size_right;i ++){
+        result[i] = COLnew(0, type_left, left_bat_count, TRANSIENT);
+        BBPkeepref(result[i] -> batCacheid);
+        if(BUNappend(res, &(result[i] -> batCacheid), true) != GDK_SUCCEED){
+            GDKerror("batcalc matmul cannot append value to result bat\n");
+        }
+    }
+
+    // Calculate
+    for(BUN i = 0;i < left_bat_count; i ++){
+        // Create a new BAT of the row
+        BAT *row = COLnew(0, type_left, size_left, TRANSIENT);
+        for(long ri = 0;ri < size_left; ri ++){
+            if(BUNappend(row, BUNtail(left_iter[ri], i), true) != GDK_SUCCEED){
+                GDKerror("batcalc matmul cannot append value to row bat\n");
+            }
+        }
+        for(long right_idx = 0; right_idx < size_right; right_idx ++) {
+            BAT *mul_res = BATcalcmul(row, right[right_idx], NULL, NULL, type_left, true);
+            int sum_res_value = 0;
+            int *sum_res = &sum_res_value;
+            if(BATsum(sum_res, type_left, mul_res, NULL, false, true, false) != GDK_SUCCEED){
+                GDKerror("batcalc matmul sum error\n");
+            }
+            // TODO Append result to output BATs
+            if(BUNappend(result[right_idx], sum_res, true) != GDK_SUCCEED){
+                GDKerror("batcalc matmul appending to output error\n");
+            }
+        }
+    }
+
     return res;
 }
 
@@ -4436,7 +4467,7 @@ BAT *BATtransposeheader(BAT *ordering_schema_bat){
 
 
 BAT *
-BATtranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_bats, int application_schema_count) {
+BATcalcmattranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_schema_bats, int application_schema_count) {
     int result_bat_size = application_schema_count + 1; /* length of a single result BAT */
     BAT *transposition_result = COLnew(0, TYPE_bat, result_bat_size, TRANSIENT);
     BUN result_count = BATcount(ordering_schema_bat) + 1; /* the length of ordering schema and the header*/

@@ -632,7 +632,7 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     BAT *result_columns = NULL;
     int retc = pci -> retc;
     int argc = pci -> argc;
-    int input_arg_index = argc - retc - 1;
+    int input_arg_index = retc;
     int input_bat_arg_index = input_arg_index + 3;
     long left_size = *getArgReference_lng(stk, pci, input_arg_index);
     long right_size = *getArgReference_lng(stk, pci, input_arg_index + 1);
@@ -667,9 +667,9 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     BAT *input_bats_right[right_size + n_bat_id_right];
 
     long array_i = 0;
-    int i = 0;
+    int i = input_bat_arg_index;
     while(i < input_bat_arg_index + left_size && array_i < input_bat_arg_index + left_size ){
-        bid = *getArgReference_bat(stk, pci, input_arg_index + i);
+        bid = *getArgReference_bat(stk, pci, i);
         application_bat = BATdescriptor(bid);
         if(application_bat -> ttype != TYPE_bat) {
             if (application_bat == NULL)
@@ -696,12 +696,12 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
 
     array_i = 0;
     while(i < argc && array_i < right_size + n_bat_id_right){
-        bid = *getArgReference_bat(stk, pci, input_arg_index + i);
+        bid = *getArgReference_bat(stk, pci, i);
         application_bat = BATdescriptor(bid);
         if(application_bat -> ttype != TYPE_bat) {
             if (application_bat == NULL)
                 goto bailout;
-            input_bats_left[array_i] = application_bat;
+            input_bats_right[array_i] = application_bat;
             array_i ++;
         }
             // Put BATs from BAT ids into the array
@@ -714,14 +714,15 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
                 inner_bat = BATdescriptor(inner_bat_id);
                 if (inner_bat == NULL)
                     goto bailout;
-                input_bats_left[array_i] = inner_bat;
+                input_bats_right[array_i] = inner_bat;
                 array_i ++;
             }
         }
         i ++;
     }
 
-    BAT *res_arr = BATmatmul(left_size + n_bat_id_left, right_size + n_bat_id_right, input_bats_left, input_bats_right);
+    BAT *res_arr = BATcalcmatmul(left_size + n_bat_id_left, right_size + n_bat_id_right, input_bats_left,
+                                 input_bats_right);
 
     // TODO Deal with the situation where we need to re-assemble the BAT into BAT id array
 
@@ -729,7 +730,6 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
 
     for(BUN idx = 0;idx < res_arr -> batCount;idx ++){
         bat res_bat_id = *(((int *)res_i.base) + idx);
-        BBPkeepref(res_bat_id);
         *getArgReference_bat(stk,pci,idx + 1) = res_bat_id;
     }
 
@@ -819,7 +819,8 @@ CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
         }
         i ++;
     }
-    result_columns = BATtranspose(result_headers, order_schema_bat, application_schema_bats, application_schema_column_len + n_bat_id);
+    result_columns = BATcalcmattranspose(result_headers, order_schema_bat, application_schema_bats,
+                                         application_schema_column_len + n_bat_id);
 
     if(!result_columns || !result_headers)
         goto bailout;
