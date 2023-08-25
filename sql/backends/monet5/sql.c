@@ -2452,6 +2452,8 @@ mvc_result_set_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
             bat ord_sche_bat_id = *(((bat *) (result_bat_i.base)));
             BAT *order_bat = BATdescriptor(ord_sche_bat_id);
             // Here we should use type name and digit and scale of str type
+            // We assume that the new order part of transpose relation is always in str type, which make sense because
+            // the new order part of the relation comes from the column names of the original relation, which are all strings
             if (mvc_result_column(be, tblname, colname, "varchar", 0, 0, order_bat))
                 msg = createException(SQL, "sql.resultSet", SQLSTATE(42000) "Cannot access column descriptor %s.%s",tblname,colname);
             for(BUN idx = 1;idx < result_bat_count; idx ++) {
@@ -2664,7 +2666,6 @@ mvc_row_result_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 	backend *be = NULL;
 	ptr value;
 	int mtype;
-    int mtype_inner;
 	BAT *tbl = NULL, *atr = NULL, *tpe = NULL, *len = NULL, *scale = NULL;
 
 	if ((msg = getBackendContext(cntxt, &be)) != NULL)
@@ -2698,42 +2699,17 @@ mvc_row_result_wrap( Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 
         value = getArgReference(stk, pci, i);
 		mtype = getArgType(mb, pci, i);
-        if(mtype != TYPE_bat) {
-            if (ATOMextern(mtype))
-                value = *(ptr *) value;
-            if ((ok = mvc_result_value(be, tblname, colname, tpename, *digits++, *scaledigits++, value, mtype) < 0)) {
-                msg = createException(SQL, "sql.rsColumn", SQLSTATE(45000) "Result set construction failed: %s",
-                                      mvc_export_error(be, be->out, ok));
-                bat_iterator_end(&itertbl);
-                bat_iterator_end(&iteratr);
-                bat_iterator_end(&itertpe);
-                bat_iterator_end(&iterdig);
-                bat_iterator_end(&iterscl);
-                goto wrapup_result_set;
-            }
-        }
-        // Deal with array of columns
-        else{
-            bat result_bat_id = *getArgReference_bat(stk, pci, i);
-            BAT *result_bat = BATdescriptor(result_bat_id);
-            BUN result_bat_count = result_bat -> batCount;
-            BATiter result_bat_i = bat_iterator(result_bat);
-            for(BUN idx = 0;idx < result_bat_count; idx ++){
-                // Get idx th of the result bat and fetch it as bat id
-                bat inner_bat_id = *(((bat*)(result_bat_i.base)) + idx);
-                BAT *inner_bat = BATdescriptor(inner_bat_id);
-                mtype_inner = newBatType(inner_bat -> ttype);
-                if ((ok = mvc_result_value(be, tblname, colname, tpename, *digits++, *scaledigits++, (void *)inner_bat, mtype_inner) < 0)) {
-                    msg = createException(SQL, "sql.rsColumn", SQLSTATE(45000) "Result set construction failed: %s",
-                                          mvc_export_error(be, be->out, ok));
-                    bat_iterator_end(&itertbl);
-                    bat_iterator_end(&iteratr);
-                    bat_iterator_end(&itertpe);
-                    bat_iterator_end(&iterdig);
-                    bat_iterator_end(&iterscl);
-                    goto wrapup_result_set;
-                }
-            }
+        if (ATOMextern(mtype))
+            value = *(ptr *) value;
+        if ((ok = mvc_result_value(be, tblname, colname, tpename, *digits++, *scaledigits++, value, mtype) < 0)) {
+            msg = createException(SQL, "sql.rsColumn", SQLSTATE(45000) "Result set construction failed: %s",
+                                  mvc_export_error(be, be->out, ok));
+            bat_iterator_end(&itertbl);
+            bat_iterator_end(&iteratr);
+            bat_iterator_end(&itertpe);
+            bat_iterator_end(&iterdig);
+            bat_iterator_end(&iterscl);
+            goto wrapup_result_set;
         }
 	}
 	bat_iterator_end(&itertbl);

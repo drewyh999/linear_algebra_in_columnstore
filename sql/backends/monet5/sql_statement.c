@@ -4135,7 +4135,7 @@ stmt_matrix_multiplication(backend *be, list *op_aligned_stmts_l, list *ap_align
 
     // Set returning ordering schema type
     stmt *os_l = op_aligned_stmts_l -> h -> data;
-    sql_subtype *os_l_type = tail_type(os_l);
+    sql_subtype *os_l_type = os_tail_type(os_l);
     int return_arg_id = getArg(mmu_instruction, 0);
     setVarType(mb, return_arg_id, newBatType(os_l_type->type->localtype));
 
@@ -4182,6 +4182,97 @@ stmt_matrix_multiplication(backend *be, list *op_aligned_stmts_l, list *ap_align
     }
     return NULL;
 
+}
+sql_subtype *
+os_tail_type(stmt *st){
+    for (;;) {
+        switch (st->type) {
+            case st_const:
+                st = st->op2;
+                continue;
+            case st_uselect:
+            case st_semijoin:
+            case st_limit:
+            case st_limit2:
+            case st_sample:
+            case st_tunion:
+            case st_tdiff:
+            case st_tinter:
+                return sql_bind_localtype("oid");
+            case st_uselect2:
+                if (!st->reduce)
+                    return sql_bind_localtype("bit");
+                return sql_bind_localtype("oid");
+            case st_append:
+            case st_append_bulk:
+            case st_replace:
+            case st_alias:
+            case st_gen_group:
+            case st_order:
+                st = st->op1;
+                continue;
+            case st_list:
+                st = st->op4.lval->h->data;
+                continue;
+            case st_transpose_list:
+                return &st->os_sub_type;
+            case st_mmu_result:
+                st = st->op4.stval;
+                continue;
+            case st_bat:
+                return &st->op4.cval->type;
+            case st_idxbat:
+                if (hash_index(st->op4.idxval->type)) {
+                    return sql_bind_localtype("lng");
+                } else if (oid_index(st->op4.idxval->type)) {
+                    return sql_bind_localtype("oid");
+                }
+                /* fall through */
+            case st_join:
+            case st_join2:
+            case st_joinN:
+                if (st->flag == cmp_project) {
+                    st = st->op2;
+                    continue;
+                }
+                /* fall through */
+            case st_reorder:
+            case st_group:
+            case st_result:
+            case st_tid:
+            case st_mirror:
+                return sql_bind_localtype("oid");
+            case st_table_clear:
+                return sql_bind_localtype("lng");
+            case st_aggr:
+            case st_Nop: {
+                list *res = st->op4.funcval->res;
+
+                if (res && list_length(res) == 1)
+                    return res->h->data;
+
+                return NULL;
+            }
+            case st_atom:
+                return atom_type(st->op4.aval);
+            case st_convert:
+            case st_temp:
+            case st_single:
+            case st_rs_column:
+                return &st->op4.typeval;
+            case st_var:
+                if (st->op4.typeval.type)
+                    return &st->op4.typeval;
+                /* fall through */
+            case st_exception:
+                return NULL;
+            case st_table:
+                return sql_bind_localtype("bat");
+            default:
+                assert(0);
+                return NULL;
+        }
+    }
 }
 
 sql_subtype *

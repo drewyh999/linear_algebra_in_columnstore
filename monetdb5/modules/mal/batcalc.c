@@ -685,6 +685,7 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
             for(BUN j = 0;j < i_size;j ++){
                 bat inner_bat_id = *(((int *)bi.base) + j);
                 inner_bat = BATdescriptor(inner_bat_id);
+                BATprint(stdout_wastream(), inner_bat);
                 if (inner_bat == NULL)
                     goto bailout;
                 input_bats_left[array_i] = inner_bat;

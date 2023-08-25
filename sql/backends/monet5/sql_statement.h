@@ -120,6 +120,7 @@ typedef struct stmt {
 	struct stmt *op3;
 	stmtdata op4;		/* only op4 will hold other types */
     struct stmt *transpose_header; /* store the instruction that points to transpose headers */
+    sql_subtype os_sub_type;
 
 	unsigned int
 	 nrcols:2,
@@ -269,6 +270,7 @@ extern stmt *stmt_return(backend *be, stmt *val, int nr_of_declared_tables);
 extern stmt *stmt_assign(backend *be, const char *sname, const char *varname, stmt *val, int level);
 
 extern sql_subtype *tail_type(stmt *st);
+extern sql_subtype *os_tail_type(stmt *st);
 extern int stmt_has_null(stmt *s);
 
 extern const char *column_name(sql_allocator *sa, stmt *st);

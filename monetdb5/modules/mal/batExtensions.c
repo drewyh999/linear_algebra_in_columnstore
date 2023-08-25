@@ -304,6 +304,7 @@ CMDBATexclude(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci) {
     (void) mb;
     bat *bn = getArgReference_bat(stk, pci, 0);
     BAT *input_bat_array = BATdescriptor(*getArgReference_bat(stk, pci, 2));
+    BAT *output_bat_array = COLnew(0, TYPE_bat, input_bat_array -> batCount, TRANSIENT);
     const char *cname = *getArgReference_str(stk, pci, 1);
 
     BATiter input_i = bat_iterator(input_bat_array);
@@ -315,14 +316,15 @@ CMDBATexclude(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci) {
         if(!b -> cname){
             throw(MAL, "bat.exclude", "column info lost");
         }
-        if(strcmp(b -> cname, cname) == 0){
-            if(BUNdelete(input_bat_array, i) != GDK_SUCCEED){
-                throw(MAL, "bat.exclude", "BUN delete not succeed");
+        if(strcmp(b -> cname, cname) != 0){
+            int *bat_id_p = (int *)GDKmalloc(sizeof(int));
+            *bat_id_p = bat_id;
+            if(BUNappend(output_bat_array, bat_id_p, true) != GDK_SUCCEED){
+                throw(MAL, "bat.exclude", "BUN append not succeed");
             }
         }
     }
-
-    *bn = input_bat_array -> batCacheid;
+    *bn = output_bat_array -> batCacheid;
     BBPkeepref(*bn);
 
     return MAL_SUCCEED;

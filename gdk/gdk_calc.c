@@ -4434,12 +4434,10 @@ BAT *BATcalcmatmul(long size_left, long size_right, BAT **left, BAT **right){
         }
         for(long right_idx = 0; right_idx < size_right; right_idx ++) {
             BAT *mul_res = BATcalcmul(row, right[right_idx], NULL, NULL, type_left, true);
-            int sum_res_value = 0;
-            int *sum_res = &sum_res_value;
-            if(BATsum(sum_res, type_left, mul_res, NULL, false, true, false) != GDK_SUCCEED){
+            int *sum_res = (int *)GDKmalloc(sizeof(int));
+            if(BATsum(sum_res, type_left, mul_res, NULL, true, true, false) != GDK_SUCCEED){
                 GDKerror("batcalc matmul sum error\n");
             }
-            // TODO Append result to output BATs
             if(BUNappend(result[right_idx], sum_res, true) != GDK_SUCCEED){
                 GDKerror("batcalc matmul appending to output error\n");
             }

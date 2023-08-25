@@ -6523,6 +6523,7 @@ static stmt *rel2bin_matrix_transpose(backend *be, sql_rel *relation_tree, list 
     stmt *transpose_stmt = stmt_matrix_transpose(be, order_part_alignment_stmts,
                                                  application_part_alignment_stmts, relation_tree -> transpose_alias);
 
+    transpose_stmt -> os_sub_type = ((sql_exp *)order_schema -> h -> data) -> tpe;
     list *result_list = sa_list(be -> mvc -> sa);
     stmt *transposed_columns_stmt = stmt_result2(be, transpose_stmt, 0);
     stmt *transposed_header_stmt = stmt_result2(be, transpose_stmt, 1);
