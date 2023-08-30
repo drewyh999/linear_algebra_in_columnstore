@@ -3063,6 +3063,33 @@ ADD_3TYPE(dbl, flt, dbl, F)
 ADD_3TYPE(dbl, dbl, dbl, F)
 
 static void *
+create_val_gdk(int type){
+    type = ATOMbasetype(type);
+    switch (type) {
+        case TYPE_bte:
+            return GDKmalloc(sizeof(bte));
+        case TYPE_sht:
+            return GDKmalloc(sizeof(sht));
+        case TYPE_int:
+            return GDKmalloc(sizeof(int));
+        case TYPE_lng:
+            return GDKmalloc(sizeof(lng));
+#ifdef HAVE_HGE
+        case TYPE_hge:
+            return GDKmalloc(sizeof(hge));
+#endif
+        case TYPE_flt:
+            return GDKmalloc(sizeof(flt));
+        case TYPE_dbl:
+            return GDKmalloc(sizeof(dbl));
+        default:
+            GDKerror("%s: type %s not supported.\n",
+                     "batcalc.matmul", ATOMname(type));
+            return NULL;
+    }
+}
+
+static void *
 get_value_switch(const void *bat_base, int type, int offset){
     type = ATOMbasetype(type);
     switch (type) {
@@ -4434,7 +4461,7 @@ BAT *BATcalcmatmul(long size_left, long size_right, BAT **left, BAT **right){
         }
         for(long right_idx = 0; right_idx < size_right; right_idx ++) {
             BAT *mul_res = BATcalcmul(row, right[right_idx], NULL, NULL, type_left, true);
-            int *sum_res = (int *)GDKmalloc(sizeof(int));
+            void *sum_res = create_val_gdk(type_left);
             if(BATsum(sum_res, type_left, mul_res, NULL, true, true, false) != GDK_SUCCEED){
                 GDKerror("batcalc matmul sum error\n");
             }
