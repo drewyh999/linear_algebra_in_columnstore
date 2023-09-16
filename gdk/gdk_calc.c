@@ -4422,6 +4422,35 @@ addstr_loop(BAT *b1, const char *l, BAT *b2, const char *r, BAT *bn, BATiter b1i
 	GDKfree(s);
 	return BUN_NONE;
 }
+BAT *BATcalcmatsubtractvector(long size_left, long size_right, BAT **left, BAT **right){
+    // Check shape
+    if(size_right != 1){
+        GDKerror("batcalc minus. vector size is not 1\n");
+        return NULL;
+    }
+    BUN right_bat_count = right[0] -> batCount;
+    BUN left_bat_count = left[0] -> batCount;
+    if(left_bat_count != right_bat_count){
+        GDKerror("batcalc minus. vector size not the same with relation row length\n");
+        return NULL;
+    }
+
+    //Initialize result BAT
+    BAT *res = COLnew(0, TYPE_bat, size_left, TRANSIENT);
+
+    unsigned char type_left = left[0] -> ttype;
+
+    // Calculate
+    for(long i = 0;i < size_left; i ++){
+        BAT *b = BATcalcsub(left[i], right[0], NULL, NULL, type_left, true);
+        if(BUNappend(res, &(b -> batCacheid), true) != GDK_SUCCEED){
+            GDKerror("batcalc minus. Cannot append result to res array\n");
+            return NULL;
+        }
+    }
+
+    return res;
+}
 
 BAT *BATcalcmatmul(long size_left, long size_right, BAT **left, BAT **right){
     // Check shape
@@ -4429,7 +4458,7 @@ BAT *BATcalcmatmul(long size_left, long size_right, BAT **left, BAT **right){
     BUN left_bat_count = left[0] -> batCount;
     BAT *result[size_right];
     if((unsigned long)size_left != right_bat_count){
-        GDKerror("batcalc transposition header creation failed. fail to append bat\n");
+        GDKerror("batcalc multiplication. sizes of application parts of both relations not compatible\n");
         return NULL;
     }
     unsigned char type_left = left[0] -> ttype;

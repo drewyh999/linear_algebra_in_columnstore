@@ -17,6 +17,26 @@
 #include "rel_rewriter.h"
 
 sql_rel *
+rel_matrix_negate(sql_allocator *sa, sql_rel *sub_rel_l, sql_rel *sub_rel_r, list *order_schema_l, list *order_schema_r,
+                  list *application_schema_l, list *application_schema_r)
+{
+    sql_rel *rel = rel_create(sa);
+    if(!rel)
+        return NULL;
+
+    rel->l = sub_rel_l;
+    rel->r = sub_rel_r;
+    rel->op = op_matrix_subtraction;
+    rel->os_l = order_schema_l;
+    rel->os_r = order_schema_r;
+    rel->as_l = application_schema_l;
+    rel->as_r = application_schema_r;
+    rel->card = CARD_MULTI;
+    rel->nrcols = sub_rel_r -> nrcols;
+    return rel;
+}
+
+sql_rel *
 rel_matrix_multiplication(sql_allocator *sa, sql_rel *sub_rel_l, sql_rel *sub_rel_r, list *order_schema_l, list *order_schema_r,
                           list *application_schema_l, list *application_schema_r)
 {
@@ -135,7 +155,8 @@ rel_destroy_(sql_rel *rel)
 		break;
 	case op_join:
     case op_matrix_multiplication:
-	case op_left:
+    case op_matrix_subtraction:
+    case op_left:
 	case op_right:
 	case op_full:
 	case op_semi:
@@ -225,7 +246,8 @@ rel_copy(mvc *sql, sql_rel *i, int deep)
 	case op_project:
 	case op_groupby:
     case op_matrix_transpose:
-		if (i->l)
+    case op_matrix_subtraction:
+        if (i->l)
 			rel->l = rel_copy(sql, i->l, deep);
 		if (i->r) {
 			if (!deep) {
@@ -1169,7 +1191,8 @@ rel_bind_path_(mvc *sql, sql_rel *rel, sql_exp *e, list *path )
 	switch (rel->op) {
 	case op_join:
     case op_matrix_multiplication:
-	case op_left:
+    case op_matrix_subtraction:
+    case op_left:
 	case op_right:
 	case op_full:
 		/* first right (possible subquery) */
@@ -1886,7 +1909,8 @@ rel_deps(mvc *sql, sql_rel *r, list *refs, list *l)
 	} break;
 	case op_join:
     case op_matrix_multiplication:
-	case op_left:
+    case op_matrix_subtraction:
+    case op_left:
 	case op_right:
 	case op_full:
 	case op_semi:
@@ -2117,8 +2141,8 @@ rel_exp_visitor(visitor *v, sql_rel *rel, exp_rewrite_fptr exp_rewriter, bool to
 	case op_semi:
 	case op_anti:
     case op_matrix_multiplication:
-
-	case op_union:
+    case op_matrix_subtraction:
+    case op_union:
 	case op_inter:
 	case op_except:
 		if (rel->l)
@@ -2321,8 +2345,8 @@ rel_visitor(visitor *v, sql_rel *rel, rel_rewrite_fptr rel_rewriter, bool topdow
 	case op_anti:
 
     case op_matrix_multiplication:
-
-	case op_union:
+    case op_matrix_subtraction:
+    case op_union:
 	case op_inter:
 	case op_except:
 		if (rel->l)

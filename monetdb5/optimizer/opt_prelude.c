@@ -321,6 +321,7 @@ const char *transaction_releaseRef;
 const char *transaction_rollbackRef;
 const char *umaskRef;
 const char *matmulRef;
+const char *matsubRef;
 const char *uniqueRef;
 const char *unlockRef;
 const char *unpackRef;
@@ -525,6 +526,7 @@ void optimizerInit(void)
 	multicolumnRef = putName("multicolumn");
 	multiplexRef = putName("multiplex");
     matmulRef = putName("matmul");
+    matsubRef = putName("matsub");
 	mvcRef = putName("mvc");
 	newRef = putName("new");
 	nextRef = putName("next");

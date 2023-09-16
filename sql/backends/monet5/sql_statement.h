@@ -282,4 +282,5 @@ extern stmt *stmt_fetch(backend *ba, stmt *val);
 
 extern stmt *stmt_matrix_transpose(backend *be, list *order_alignment_stmt, list *application_alignment_stmt, const char *transpose_alias);
 extern stmt *stmt_matrix_multiplication(backend *be, list *op_aligned_stmts_l, list *ap_aligned_stmts_l, list *ap_aligned_stmts_r);
+extern stmt *stmt_matrix_subtraction(backend *be, list *op_aligned_stmts_l, list *ap_aligned_stmts_l, list *ap_aligned_stmts_r);
 #endif /* _SQL_STATEMENT_H_ */

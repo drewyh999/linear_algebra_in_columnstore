@@ -124,6 +124,8 @@ extern sql_rel *rel_matrix_transpose(sql_allocator *sa, sql_rel *table_ref_relat
                                      list *application_schema_exps, char *transpose_alias);
 extern sql_rel *rel_matrix_multiplication(sql_allocator *sa, sql_rel *sub_rel_l, sql_rel *sub_rel_r, list *order_schema_l, list *order_schema_r,
                                           list *application_schema_l, list *application_schema_r);
+extern sql_rel *rel_matrix_negate(sql_allocator *sa, sql_rel *sub_rel_l, sql_rel *sub_rel_r, list *order_schema_l, list *order_schema_r,
+                                  list *application_schema_l, list *application_schema_r);
 
 typedef struct visitor {
 	int changes;

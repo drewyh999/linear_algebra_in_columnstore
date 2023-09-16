@@ -37,6 +37,8 @@ static list * rel_ordering_schema_exps(sql_query *query, sql_rel **relation_tree
 
 static sql_rel* rel_matrix_multiplication_query(sql_query *query, sql_rel *relation_tree, symbol *matmul_symbol);
 
+static sql_rel *rel_matrix_negate_query(sql_query *query, sql_rel *relation_tree, symbol *matmul_symbol);
+
 static symbdata get_element_by_index(dlist *list_in, int index){
     dnode *res = list_in -> h;
     for(int i = 0;i < index;i ++){
@@ -367,6 +369,13 @@ query_exp_optname(sql_query *query, sql_rel *r, symbol *q, list *refs)
         case SQL_MATMUL:
         {
             sql_rel *tq = rel_matrix_multiplication_query(query, r, q);
+            if (!tq)
+                return NULL;
+            return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
+        }
+        case SQL_MATMINUS:
+        {
+            sql_rel *tq = rel_matrix_negate_query(query, r, q);
             if (!tq)
                 return NULL;
             return rel_table_optname(sql, tq, q->data.lval->t->data.sym, NULL);
@@ -6426,6 +6435,54 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
 
     list_append(projection_list, placeholder_expression);
 
+    relation_tree = rel_project(sa, relation_tree, projection_list);
+
+    return relation_tree;
+}
+
+
+sql_rel *rel_matrix_negate_query(sql_query *query, sql_rel *relation_tree, symbol *matmul_symbol) {
+    sql_allocator *sa = query -> sql ->sa;
+
+    // Fetch symbol tree information
+    dlist *data_list = matmul_symbol -> data.lval;
+    symbol *table_ref_l_symbol = get_element_by_index(data_list, 0).sym;
+    dlist *ordering_schema_l_symbols = get_element_by_index(data_list, 1).lval;
+    symbol *table_ref_r_symbol = get_element_by_index(data_list, 2).sym;
+    dlist *ordering_schema_r_symbols = get_element_by_index(data_list, 3).lval;
+
+    // Resolve left and right table reference
+    sql_rel *sub_rel_l = table_ref(query, NULL, table_ref_l_symbol, 0, NULL);
+    sql_rel *sub_rel_r = table_ref(query, NULL, table_ref_r_symbol, 0, NULL);
+
+    // Resolve ordering schemas for left and right matrix
+    list *os_exps_l = rel_ordering_schema_exps(query, &sub_rel_l, ordering_schema_l_symbols);
+    list *os_exps_r = rel_ordering_schema_exps(query, &sub_rel_r, ordering_schema_r_symbols);
+
+    // Get application schema according ordering schemas
+    list *as_exps_l = rel_application_schema_exps(query, sub_rel_l, os_exps_l);
+    list *as_exps_r = rel_application_schema_exps(query, sub_rel_r, os_exps_r);
+
+    // Check application part has the same type
+    if(exps_same_type(as_exps_l) == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix minus: left relation application schema has different type");
+    }
+    if(exps_same_type(as_exps_r) == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix minus: right relation application schema has different type");
+    }
+
+    //Check if the right relation has only one column in application part
+    if(as_exps_r->cnt != 1){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix minus: right relation application schema is not a single column vector");
+    }
+
+    // Construct mmi node
+    relation_tree = rel_matrix_negate(sa, sub_rel_l, sub_rel_r, os_exps_l, os_exps_r, as_exps_l, as_exps_r);
+
+    // For matrix minus, we keep the schema of the result as the left relation schema
+    list *projection_list = new_exp_list(sa);
+    projection_list = list_concat(projection_list, os_exps_l);
+    projection_list = list_concat(projection_list, as_exps_l);
     relation_tree = rel_project(sa, relation_tree, projection_list);
 
     return relation_tree;

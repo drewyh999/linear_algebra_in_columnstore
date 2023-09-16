@@ -150,6 +150,7 @@ typedef enum tokens {
 	SQL_TYPE,
     SQL_TRANSPOSE,
     SQL_MATMUL,
+    SQL_MATMINUS,
 	SQL_UNION,
 	SQL_UNIQUE,
 	SQL_UNOP,

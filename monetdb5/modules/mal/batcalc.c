@@ -624,6 +624,120 @@ CMDbatADD(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 						 calctype, 0, "batcalc.add_noerror");
 }
 
+static str
+CMDbatMATSUB(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
+    (void) cntxt;
+    (void) mb;
+    BAT *result_columns = NULL;
+    int retc = pci -> retc;
+    int argc = pci -> argc;
+    int input_arg_index = retc;
+    int input_bat_arg_index = input_arg_index + 3;
+    long left_size = *getArgReference_lng(stk, pci, input_arg_index);
+    long right_size = *getArgReference_lng(stk, pci, input_arg_index + 1);
+
+    // Return the ordering schema directly
+    *getArgReference_bat(stk, pci, 0) = *getArgReference_bat(stk, pci, input_arg_index + 2);
+
+    // Detect BAT arrays for both side of mmu
+    long n_bat_id_left = 0;
+    long n_bat_id_right = 0;
+    bat bid;
+    BAT *application_bat;
+    for(long i = input_bat_arg_index;i < input_bat_arg_index + left_size;i ++){
+        bid = *getArgReference_bat(stk, pci, i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype == TYPE_bat){
+            n_bat_id_left += application_bat -> batCount - 1;
+        }
+    }
+    for(long i = input_bat_arg_index + left_size;i < argc;i ++){
+        bid = *getArgReference_bat(stk, pci, i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype == TYPE_bat){
+            n_bat_id_left += application_bat -> batCount - 1;
+        }
+    }
+
+    // Put input BATs into arrays for both sides
+    BAT *input_bats_left[left_size + n_bat_id_left];
+    BAT *input_bats_right[right_size + n_bat_id_right];
+
+    long array_i = 0;
+    int i = input_bat_arg_index;
+    while(i < input_bat_arg_index + left_size && array_i < input_bat_arg_index + left_size ){
+        bid = *getArgReference_bat(stk, pci, i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype != TYPE_bat) {
+            if (application_bat == NULL)
+                goto bailout;
+            input_bats_left[array_i] = application_bat;
+            array_i ++;
+        }
+            // Put BATs from BAT ids into the array
+        else{
+            BATiter bi = bat_iterator(application_bat);
+            BUN i_size = application_bat -> batCount;
+            BAT *inner_bat;
+            for(BUN j = 0;j < i_size;j ++){
+                bat inner_bat_id = *(((int *)bi.base) + j);
+                inner_bat = BATdescriptor(inner_bat_id);
+                if (inner_bat == NULL)
+                    goto bailout;
+                input_bats_left[array_i] = inner_bat;
+                array_i ++;
+            }
+        }
+        i ++;
+    }
+
+    array_i = 0;
+    while(i < argc && array_i < right_size + n_bat_id_right){
+        bid = *getArgReference_bat(stk, pci, i);
+        application_bat = BATdescriptor(bid);
+        if(application_bat -> ttype != TYPE_bat) {
+            if (application_bat == NULL)
+                goto bailout;
+            input_bats_right[array_i] = application_bat;
+            array_i ++;
+        }
+            // Put BATs from BAT ids into the array
+        else{
+            BATiter bi = bat_iterator(application_bat);
+            BUN i_size = application_bat -> batCount;
+            BAT *inner_bat;
+            for(BUN j = 0;j < i_size;j ++){
+                bat inner_bat_id = *(((int *)bi.base) + j);
+                inner_bat = BATdescriptor(inner_bat_id);
+                if (inner_bat == NULL)
+                    goto bailout;
+                input_bats_right[array_i] = inner_bat;
+                array_i ++;
+            }
+        }
+        i ++;
+    }
+
+    BAT *res_arr = BATcalcmatsubtractvector(left_size + n_bat_id_left, right_size + n_bat_id_right, input_bats_left,
+                                            input_bats_right);
+
+
+    BATiter res_i = bat_iterator(res_arr);
+
+    for(BUN idx = 0;idx < res_arr -> batCount;idx ++){
+        bat res_bat_id = *(((int *)res_i.base) + idx);
+        *getArgReference_bat(stk,pci,idx + 1) = res_bat_id;
+    }
+
+    return MAL_SUCCEED;
+
+    bailout:
+    if (result_columns)
+        BBPunfix(result_columns->batCacheid);
+
+    throw(MAL, "batcalc.matmul", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
+}
+
 // bat[any]... := batcalc.matmul(size_left:lng, size_right:lng, ordering schema left, ap_left, ap_right)
 static str
 CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
@@ -639,12 +753,10 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
 
     // Return the ordering schema directly
     *getArgReference_bat(stk, pci, 0) = *getArgReference_bat(stk, pci, input_arg_index + 2);
-    (void) right_size;
 
     // Detect BAT arrays for both side of mmu
     long n_bat_id_left = 0;
     long n_bat_id_right = 0;
-    (void) n_bat_id_right;
     bat bid;
     BAT *application_bat;
     for(long i = input_bat_arg_index;i < input_bat_arg_index + left_size;i ++){
@@ -685,7 +797,6 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
             for(BUN j = 0;j < i_size;j ++){
                 bat inner_bat_id = *(((int *)bi.base) + j);
                 inner_bat = BATdescriptor(inner_bat_id);
-                BATprint(stdout_wastream(), inner_bat);
                 if (inner_bat == NULL)
                     goto bailout;
                 input_bats_left[array_i] = inner_bat;
@@ -2391,6 +2502,7 @@ static mel_func batcalc_init_funcs[] = {
                                                                                                                                                                                                                                                         batarg("", str) ,batvarargany("bat_in", 0))),
  pattern("batcalc", "matmul", CMDbatMATMUL,false, "Return the results of matrix multiplication", args(1,4, batvarargany("bat_out", 0), arg("", lng), arg("", lng), batvarargany("", 0))),
 
+ pattern("batcalc", "matsub", CMDbatMATSUB, false, "Return the results of matrix minus a column vector", args(1, 4, batvarargany("bat_out", 0), arg("", lng), arg("", lng), batvarargany("", 0))),
 
  pattern("batmmath", "fmod", CMDbatMODsignal, false, "", args(1,3, batarg("",dbl),batarg("x",dbl),arg("y",dbl))),
  pattern("batmmath", "fmod", CMDbatMODsignal, false, "", args(1,4, batarg("",dbl),batarg("x",dbl),arg("y",dbl),batarg("s",oid))),

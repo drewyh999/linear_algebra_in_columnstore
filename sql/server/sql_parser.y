@@ -709,7 +709,7 @@ SQLCODE SQLERROR UNDER WHENEVER
 %token INDEX REPLACE
 
 // Tokens for matrix operation
-%token TRANSPOSE MATRIX_MULTIPLICATION
+%token TRANSPOSE MATRIX_MULTIPLICATION MATRIX_MINUS
 
 %token AS TRIGGER OF BEFORE AFTER ROW STATEMENT sqlNEW OLD EACH REFERENCING
 %token OVER PARTITION CURRENT EXCLUDE FOLLOWING PRECEDING OTHERS TIES RANGE UNBOUNDED GROUPS WINDOW
@@ -3416,6 +3416,15 @@ matrix_operation:
 				  append_symbol(l, $7);
 				  append_list(l, $9);
 				  $$ = _symbol_create_list(SQL_MATMUL, l);
+    				}
+    | MATRIX_MINUS '(' table_ref BY column_ref_commalist ',' table_ref BY column_ref_commalist ')'
+    				{
+			    	  dlist *l = L();
+				  append_symbol(l, $3);
+				  append_list(l, $5);
+				  append_symbol(l, $7);
+				  append_list(l, $9);
+				  $$ = _symbol_create_list(SQL_MATMINUS, l);
     				}
  ;
 
@@ -6392,6 +6401,7 @@ char *token2string(tokens token)
 	SQL(XMLTEXT);
 	SQL(TRANSPOSE);
 	SQL(MATMUL);
+	SQL(MATMINUS);
 #define TR(TYPE) case TR_##TYPE : return #TYPE
 	TR(COMMIT);
 	TR(MODE);

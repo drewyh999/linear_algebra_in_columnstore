@@ -4125,6 +4125,60 @@ stmt_matrix_transpose(backend *be, list *order_alignment_stmts, list *applicatio
 
     return NULL;
 }
+stmt *
+stmt_matrix_subtraction(backend *be, list *op_aligned_stmts_l, list *ap_aligned_stmts_l, list *ap_aligned_stmts_r){
+    mvc *sql = be -> mvc;
+    MalBlkPtr mb = be -> mb;
+    int argc = 2 * op_aligned_stmts_l -> cnt + ap_aligned_stmts_l -> cnt + 2 * ap_aligned_stmts_r -> cnt + 2;
+    InstrPtr mmi_instruction = newStmtArgs(mb, batcalcRef, matsubRef, argc);
+
+    // Set returning ordering schema type
+    stmt *os_l = op_aligned_stmts_l -> h -> data;
+    sql_subtype *os_l_type = os_tail_type(os_l);
+    int return_arg_id = getArg(mmi_instruction, 0);
+    setVarType(mb, return_arg_id, newBatType(os_l_type->type->localtype));
+
+    // Push returns
+    for(node *n = ap_aligned_stmts_l -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmi_instruction = pushReturn(mb, mmi_instruction, newTmpVariable(mb, newBatType(tail_type(s) -> type -> localtype)));
+    }
+
+    // Push size args
+    int left_size = ap_aligned_stmts_l -> cnt;
+    int right_size = ap_aligned_stmts_r -> cnt;
+    mmi_instruction = pushLng(mb, mmi_instruction, left_size);
+    mmi_instruction = pushLng(mb, mmi_instruction, right_size);
+
+    // Push BATs args we only push ordering schema of the left relation and them application part of both side
+    for(node *n = op_aligned_stmts_l -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmi_instruction = pushArgument(mb, mmi_instruction, s -> nr);
+    }
+    for(node *n = ap_aligned_stmts_l -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmi_instruction = pushArgument(mb, mmi_instruction, s -> nr);
+    }
+    for(node *n = ap_aligned_stmts_r -> h; n; n = n -> next){
+        stmt *s = n -> data;
+        mmi_instruction = pushArgument(mb, mmi_instruction, s -> nr);
+    }
+
+    stmt *s = stmt_create(sql -> sa, st_list);
+    list *arg_stmt_list = sa_list(sql -> sa);
+    arg_stmt_list = list_concat(arg_stmt_list, op_aligned_stmts_l);
+    arg_stmt_list = list_concat(arg_stmt_list, ap_aligned_stmts_l);
+    arg_stmt_list = list_concat(arg_stmt_list, ap_aligned_stmts_r);
+
+    if(s){
+        s -> op4.lval = arg_stmt_list;
+        s -> nr = getDestVar(mmi_instruction);
+        s -> q = mmi_instruction;
+        s -> nrcols = 2;
+        return s;
+    }
+    return NULL;
+}
 
 stmt *
 stmt_matrix_multiplication(backend *be, list *op_aligned_stmts_l, list *ap_aligned_stmts_l, list *ap_aligned_stmts_r){
@@ -4175,8 +4229,6 @@ stmt_matrix_multiplication(backend *be, list *op_aligned_stmts_l, list *ap_align
         s -> op4.lval = arg_stmt_list;
         s -> nr = getDestVar(mmu_instruction);
         s -> q = mmu_instruction;
-        // For the cname and name of these stmt after transposition, we still give it the $ as the column name
-        // so that operations above transpose can use it to identify transposed columns
         s -> nrcols = 2;
         return s;
     }

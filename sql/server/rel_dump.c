@@ -373,7 +373,9 @@ op2string(operator_type op)
         return "matrix transpose";
     case op_matrix_multiplication:
         return "matrix multiplication";
-	case op_project:
+    case op_matrix_subtraction:
+        return "matrix minus";
+    case op_project:
 		return "project";
 	case op_select:
 		return "select";
@@ -510,6 +512,7 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 	case op_inter:
 	case op_except:
     case op_matrix_multiplication:
+    case op_matrix_subtraction:
 		r = "join";
 		if (rel->op == op_left)
 			r = "left outer join";
@@ -529,6 +532,8 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 			r = "except";
         else if (rel->op == op_matrix_multiplication)
             r = "matrix multiplication";
+        else if (rel->op == op_matrix_subtraction)
+            r = "matrix minus";
 		else if (!rel->exps && rel->op == op_join)
 			r = "crossproduct";
 
@@ -556,7 +561,7 @@ rel_print_(mvc *sql, stream  *fout, sql_rel *rel, int depth, list *refs, int dec
 		}
 		print_indent(sql, fout, depth, decorate);
 		mnstr_printf(fout, ")");
-        if(rel->op != op_matrix_multiplication) {
+        if(rel->op != op_matrix_multiplication && rel->op != op_matrix_subtraction) {
             exps_print(sql, fout, rel->exps, depth, refs, 1, 0);
         }
         else{
@@ -714,7 +719,8 @@ rel_print_refs(mvc *sql, stream* fout, sql_rel *rel, int depth, list *refs, int 
 	case op_inter:
 	case op_except:
     case op_matrix_multiplication:
-		if (rel->l)
+    case op_matrix_subtraction:
+        if (rel->l)
 			rel_print_refs(sql, fout, rel->l, depth, refs, decorate);
 		if (rel->r)
 			rel_print_refs(sql, fout, rel->r, depth, refs, decorate);

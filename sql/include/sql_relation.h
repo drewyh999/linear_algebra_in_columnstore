@@ -171,7 +171,8 @@ typedef enum operator_type {
 	op_truncate, /* truncate(l=table) */
 	op_merge,
     op_matrix_transpose,
-    op_matrix_multiplication
+    op_matrix_multiplication,
+    op_matrix_subtraction
 } operator_type;
 
 #define is_atom(et) 		(et == e_atom)
@@ -216,6 +217,7 @@ typedef enum operator_type {
 #define is_merge(op) 		(op == op_merge)
 #define is_matrix_transpose(op) (op == op_matrix_transpose)
 #define is_mmu(op) (op == op_matrix_multiplication)
+#define is_mmi(op) (op == op_matrix_subtraction)
 
 /* ZERO on empty sets, needed for sum (of counts)). */
 #define zero_if_empty(e) 	((e)->zero_if_empty)
