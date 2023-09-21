@@ -4456,7 +4456,7 @@ BAT *BATcalcmatmul(long size_left, long size_right, BAT **left, BAT **right){
     // Check shape
     BUN right_bat_count = right[0] -> batCount;
     BUN left_bat_count = left[0] -> batCount;
-    BAT *result[size_right];
+    BAT **result = GDKmalloc(sizeof(BAT *) * size_right);
     if((unsigned long)size_left != right_bat_count){
         GDKerror("batcalc multiplication. sizes of application parts of both relations not compatible\n");
         return NULL;
@@ -4464,7 +4464,7 @@ BAT *BATcalcmatmul(long size_left, long size_right, BAT **left, BAT **right){
     unsigned char type_left = left[0] -> ttype;
 
     // Initialize iterators for left matrix
-    BATiter left_iter[size_left];
+    BATiter *left_iter =  GDKmalloc(sizeof(BAT) * size_left);
     for(long i = 0;i < size_left;i ++){
         left_iter[i] = bat_iterator(left[i]);
     }

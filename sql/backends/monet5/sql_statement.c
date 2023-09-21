@@ -4330,6 +4330,7 @@ os_tail_type(stmt *st){
 sql_subtype *
 tail_type(stmt *st)
 {
+    const char* initial_cname = st->cname;
 	for (;;) {
 		switch (st->type) {
 		case st_const:
@@ -4360,7 +4361,12 @@ tail_type(stmt *st)
 			st = st->op4.lval->h->data;
 			continue;
         case st_transpose_list:
-            st = st->op4.lval->t->data;
+            if(strcmp(initial_cname, "C") == 0){
+                return sql_bind_localtype("str");
+            }
+            else {
+                st = st->op4.lval->t->data;
+            }
             continue;
         case st_mmu_result:
             st = st->op4.stval;
