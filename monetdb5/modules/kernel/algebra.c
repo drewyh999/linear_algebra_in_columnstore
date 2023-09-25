@@ -1005,7 +1005,13 @@ ALGcountCND_nil(lng *result, const bat *bid, const bat *cnd, const bit *ignore_n
 	if ((b = BATdescriptor(*bid)) == NULL) {
 		throw(MAL, "aggr.count", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
 	}
-	if (cnd && !is_bat_nil(*cnd) && (s = BATdescriptor(*cnd)) == NULL) {
+    // If the input BAT is a BAT id array, we should count it's first inner bat size
+    if(b->ttype == TYPE_bat){
+        BATiter it = bat_iterator(b);
+        bat *inner_bat_id = BUNtail(it, 0);
+        b = BATdescriptor(*inner_bat_id);
+    }
+    if (cnd && !is_bat_nil(*cnd) && (s = BATdescriptor(*cnd)) == NULL) {
 		BBPunfix(b->batCacheid);
 		throw(MAL, "aggr.count", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
 	}
