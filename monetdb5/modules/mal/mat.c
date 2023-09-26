@@ -169,6 +169,7 @@ MATpackIncrement(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr p)
 			BBPreclaim(bn);
 			throw(MAL, "mat.pack", "INTERNAL ERROR" " bn->tnil %d bn->tnonil %d", bn->tnil, bn->tnonil);
 		}
+        bn -> cname = b -> cname;
 		*ret = bn->batCacheid;
 		BBPretain(bn->batCacheid);
 		BBPunfix(bn->batCacheid);

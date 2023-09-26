@@ -4526,7 +4526,7 @@ BATcalcmattranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_sc
     BAT *transposition_result = COLnew(0, TYPE_bat, result_bat_size, TRANSIENT);
     BUN result_count = BATcount(ordering_schema_bat) + 1; /* the length of ordering schema and the header*/
     unsigned char result_type = application_schema_bats[0] -> ttype;
-    BAT *result_columns[result_count];
+    BAT **result_columns = (BAT **)GDKmalloc(sizeof(BAT) * result_count);
 
     // Create bats containing results of transposition
     BAT *new_order_schema_bat = COLnew(0, TYPE_str, result_bat_size, TRANSIENT);
@@ -4550,7 +4550,10 @@ BATcalcmattranspose(BAT *headers, BAT *ordering_schema_bat, BAT **application_sc
     // Use the original header as the new ordering schema
     for(int ap_idx = 0; ap_idx < application_schema_count; ap_idx++) {
         const char *cname = application_schema_bats[ap_idx] -> cname;
-        if(BUNappend(new_order_schema_bat, cname, true) != GDK_SUCCEED){
+        if(cname == NULL){
+            GDKerror("batcalc.transpose error: BAT column name lost");
+        }
+        else if(BUNappend(new_order_schema_bat, cname, true) != GDK_SUCCEED){
             GDKerror("batcalc.transpose error: Cannot append value to output BATs");
         }
     }

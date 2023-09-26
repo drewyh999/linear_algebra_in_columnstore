@@ -880,7 +880,7 @@ CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     }
 
     // Initialize the array for all input parameters
-    BAT *application_schema_bats[application_schema_column_len + n_bat_id];
+    BAT **application_schema_bats = GDKmalloc(sizeof(BAT) * (application_schema_column_len + n_bat_id));
 
     // Get result header from order schema bat
     result_headers = BATtransposeheader(order_schema_bat);

@@ -6411,6 +6411,10 @@ rel_matrix_transpose_query(sql_query *query, sql_rel *relation_tree, symbol *tra
     // Resolve possible sub queries in table_ref, if it is simply a table reference, it will also be processed here
     sql_rel *sub_rel = table_ref(query, NULL, table_ref_symbol, 0, NULL);
 
+    if(!sub_rel){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Transpose: Cannot resolve subrelation");
+    }
+
     // Get list of expression (in the simplest occasion, the column references) of ordering schema
     list *ordering_exps = rel_ordering_schema_exps(query, &sub_rel, ordering_schema_symbols);
 
