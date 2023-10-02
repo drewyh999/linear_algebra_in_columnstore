@@ -836,6 +836,15 @@ CMDbatMATMUL(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     BAT *res_arr = BATcalcmatmul(left_size + n_bat_id_left, right_size + n_bat_id_right, input_bats_left,
                                  input_bats_right);
 
+    // Release memory
+    for(long idx = 0; idx < left_size + n_bat_id_left; idx ++){
+        BBPunfix(input_bats_left[idx] -> batCacheid);
+    }
+
+    for(long idx = 0; idx < right_size + n_bat_id_right; idx ++){
+        BBPunfix(input_bats_right[idx] -> batCacheid);
+    }
+
     // TODO Deal with the situation where we need to re-assemble the BAT into BAT id array
 
     BATiter res_i = bat_iterator(res_arr);
@@ -933,6 +942,15 @@ CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     }
     result_columns = BATcalcmattranspose(result_headers, order_schema_bat, application_schema_bats,
                                          application_schema_column_len + n_bat_id);
+
+    // Release memory of ordering schema bat
+    BBPunfix(order_schema_bat -> batCacheid);
+
+    // Release memory of application schema bats
+    for(BUN idx = 0;idx < application_schema_column_len + n_bat_id;idx ++){
+        BBPunfix(application_schema_bats[idx] -> batCacheid);
+    }
+
 
     if(!result_columns || !result_headers)
         goto bailout;
