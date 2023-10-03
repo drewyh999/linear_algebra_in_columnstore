@@ -6457,7 +6457,13 @@ sql_rel *rel_matrix_negate_query(sql_query *query, sql_rel *relation_tree, symbo
 
     // Resolve left and right table reference
     sql_rel *sub_rel_l = table_ref(query, NULL, table_ref_l_symbol, 0, NULL);
+    if(sub_rel_l == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix subtraction: left operand resolve failed");
+    }
     sql_rel *sub_rel_r = table_ref(query, NULL, table_ref_r_symbol, 0, NULL);
+    if(sub_rel_r == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix subtraction: right operand resolve failed");
+    }
 
     // Resolve ordering schemas for left and right matrix
     list *os_exps_l = rel_ordering_schema_exps(query, &sub_rel_l, ordering_schema_l_symbols);
@@ -6504,7 +6510,13 @@ sql_rel *rel_matrix_multiplication_query(sql_query *query, sql_rel *relation_tre
 
     // Resolve left and right table reference
     sql_rel *sub_rel_l = table_ref(query, NULL, table_ref_l_symbol, 0, NULL);
+    if(sub_rel_l == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix multiplication: left operand resolve failed");
+    }
     sql_rel *sub_rel_r = table_ref(query, NULL, table_ref_r_symbol, 0, NULL);
+    if(sub_rel_r == NULL){
+        return sql_error(query -> sql, 02, SQLSTATE(42000) "Matrix multiplication: right operand resolve failed");
+    }
 
     // Resolve ordering schemas for left and right matrix
     list *os_exps_l = rel_ordering_schema_exps(query, &sub_rel_l, ordering_schema_l_symbols);
