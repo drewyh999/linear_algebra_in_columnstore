@@ -6517,7 +6517,17 @@ static stmt *rel2bin_matrix_multiplication(backend *be, sql_rel *relation_tree, 
 
     // Generate ordered oid for l and r
     stmt *sorted_os_l = sort_by_order_schema_bin(be, l, os_l);
-    stmt *sorted_os_r = sort_by_order_schema_bin(be, r, os_r);
+    /*
+     * Here for matrix multiplication, we should not sort the right operand relation, the reason is that the row order of
+     * the right relation should depend on the order of the left relation's columns, otherwise the result will be incorrect
+     * Considering the following example, for relation a, you have columns id, a3, a2, a1. for relation b you have only two
+     * columns features and weight. and feature column of has values a3, a2, a1. Now if you multiply a with b without sorting
+     * b, the weight for a1, a2, a3 are aligned correctly. However, if you sort the relation b according to order of features, which
+     * will make the column feature of b like: a1, a2, a3, then the multiplication will align the a3 column of relation a with
+     * feature a1 in relation b. Then all the weights you get are misaligned.
+     * */
+//    stmt *sorted_os_r = sort_by_order_schema_bin(be, r, os_r);
+//    stmt *sorted_os_r = r;
 
     // Find application schema and ordering schema statements from subrels for both l and r
     list *os_stmt_l = rel2bin_column_refs(be, l, os_l);
@@ -6532,7 +6542,8 @@ static stmt *rel2bin_matrix_multiplication(backend *be, sql_rel *relation_tree, 
     // Apply sorted oid on l and r
     list *op_aligned_stmts_l = alignment_projection_bin(be, sorted_os_l, os_stmt_l);
     list *ap_aligned_stmts_l = alignment_projection_bin(be, sorted_os_l, as_stmt_l);
-    list *ap_aligned_stmts_r = alignment_projection_bin(be, sorted_os_r, as_stmt_r);
+//    list *ap_aligned_stmts_r = alignment_projection_bin(be, sorted_os_r, as_stmt_r);
+    list *ap_aligned_stmts_r = as_stmt_r;
 
     stmt *mmu_stmt = stmt_matrix_multiplication(be, op_aligned_stmts_l,ap_aligned_stmts_l, ap_aligned_stmts_r);
 

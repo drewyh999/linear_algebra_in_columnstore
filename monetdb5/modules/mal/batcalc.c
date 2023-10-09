@@ -943,10 +943,9 @@ CMDbatTRANSPOSE(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci){
     result_columns = BATcalcmattranspose(result_headers, order_schema_bat, application_schema_bats,
                                          application_schema_column_len + n_bat_id);
 
-    // Release memory of ordering schema bat
+    // Release memory
     BBPunfix(order_schema_bat -> batCacheid);
 
-    // Release memory of application schema bats
     for(BUN idx = 0;idx < application_schema_column_len + n_bat_id;idx ++){
         BBPunfix(application_schema_bats[idx] -> batCacheid);
     }

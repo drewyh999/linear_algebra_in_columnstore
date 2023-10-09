@@ -687,7 +687,9 @@ str runMALsequence(Client cntxt, MalBlkPtr mb, int startpc,
 			break;
 		case CMDcall:
 			TRC_DEBUG(ALGO, "calling %s.%s\n", pci->modname ? pci->modname : "<null>", pci->fcnname ? pci->fcnname : "<null>");
+//            printf("calling %s.%s", pci->modname ? pci->modname : "<null>", pci->fcnname ? pci->fcnname : "<null>");
 			ret = malCommandCall(stk, pci);
+//            printf("result %s\n", ret == MAL_SUCCEED ? "SUCCEED" : "OTHERS");
 #ifndef NDEBUG
 			if (ret == MAL_SUCCEED) {
 				/* check that the types of actual results match

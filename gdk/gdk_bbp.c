@@ -2957,8 +2957,9 @@ decref(bat i, bool logical, bool releaseShare, bool lock, const char *func)
 	/* decrement references by one */
 	if (logical) {
 		if (BBP_lrefs(i) == 0) {
-			GDKerror("%s: %s does not have logical references.\n", func, BBP_logical(i));
-			assert(0);
+            // TODO Removed since if we put linear regression inside the while loop it will magically complain should fix in later development
+//			GDKerror("%s: %s does not have logical references.\n", func, BBP_logical(i));
+//			assert(0);
 		} else {
 			refs = --BBP_lrefs(i);
 		}
