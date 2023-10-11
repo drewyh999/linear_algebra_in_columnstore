@@ -6,6 +6,12 @@
 
 Link to original code base [MonetDB 11.43.25 Jan2022-SP6](https://www.monetdb.org/downloads/sources/Jan2022-SP6/)
 
+## Handy scripts and Clion Running configurations
+You can find them under `scripts` folder
+
+## Performance evaluation Python scripts
+You can find them under `evals` folder
+
 
 
 ## Link to documentations and diagrams
@@ -24,4 +30,7 @@ Diagrams for simple sql query `select * from people`
 ### Notion pages
 
 [solution of integrating fully-fledged transposition](https://wax-elephant-c41.notion.site/Deal-with-transposition-in-all-situations-of-sql-operations-80b195c5337b48c8ba43740bff35962d?pvs=4)
+
+
+
 [transpose implementation jotdowns](https://wax-elephant-c41.notion.site/Approach-jotdowns-7b200e7bde9846b49adb9be7b49947f8?pvs=4)
