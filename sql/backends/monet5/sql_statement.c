@@ -2960,7 +2960,7 @@ dump_header(mvc *sql, MalBlkPtr mb, list *l)
         meta_without_pushing(scalePtr, scaleId, TYPE_int, args);
     }
 
-	if(tblPtr == NULL || nmePtr == NULL || tpePtr == NULL || lenPtr == NULL || scalePtr == NULL)
+	if(tblPtr == NULL || (nmePtr == NULL && !hasTransposedHeader) || tpePtr == NULL || lenPtr == NULL || scalePtr == NULL)
 		return NULL;
 
 	for (n = l->h; n; n = n->next) {

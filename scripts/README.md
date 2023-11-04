@@ -12,3 +12,13 @@ and get the PID of the MonetDB in the `.gdk_lock` file then kill it with flag -9
 
 ## Configuration file for Clion
 Here I also attached a configuration file for clion which you can use then run MonetDB compiling all files in one click
+in this configuration file, we assume that you choose to install the MonetDB in the same folder as the code and you initailize a database called test.
+
+
+Also, you should make sure that the cmake settings of clion have the following Cmake options:
+`-DCMAKE_INSTALL_PREFIX=[PATH TO YOUR FAVORATE MONETDB INSTALLATION] -DASSERT=ON -DSTRICT=0`
+
+## Clion remote development
+You can use jetbrains client to directly develop and debug code that are on the server from your own computer.
+In clion, go to `file -> remote development -> ssh connection` then use the same credentials you use to log in the vm then 
+a jetbrains client will be installed on the vm and you can start to develop and debug exactly the same as the local clion
