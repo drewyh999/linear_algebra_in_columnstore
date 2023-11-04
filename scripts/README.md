@@ -22,3 +22,8 @@ Also, you should make sure that the cmake settings of clion have the following C
 You can use jetbrains client to directly develop and debug code that are on the server from your own computer.
 In clion, go to `file -> remote development -> ssh connection` then use the same credentials you use to log in the vm then 
 a jetbrains client will be installed on the vm and you can start to develop and debug exactly the same as the local clion
+
+## Build on debian server
+If you don't want to use jetbrain's remote development features, you can also use the script `build-debian.sh` in the 
+root directory of the project to easily build the MonetDB, note that you should also set the `MONETDB_INSTALL_PATH` before you
+run that script
